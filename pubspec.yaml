@@ -65,7 +65,7 @@ flutter:
     - assets/n.gif
     - assets/cc.gif
 
-    - assets/vn.mp4
+   
     - assets/background.mp4
 
     - assets/cook.png
@@ -74,9 +74,7 @@ flutter:
     - assets/cup.png
 
    
-    - assets/chocolate1.webp
-    - assets/redrose.jpg
-    - assets/heartcake.webp
+  
     - assets/cherry.png
     - assets/choco2.png
     - assets/choco1.png
@@ -84,9 +82,7 @@ flutter:
     - assets/flower2.png
     - assets/spri.png
 
-    - assets/bottom.png
-    
-    - assets/bhslogo.png
+   
    
     - assets/aaaa.jpg
     - assets/cake.jpg
@@ -101,13 +97,9 @@ flutter:
     - assets/whitechocolate.png
     - assets/cakepop.jpg
 
-    - assets/bf.png 
-    - assets/duel.png
+ 
 
-    - assets/redrose.jpg
-    - assets/bhslogo1.jpg
-    - assets/bhslogo(1).png
-   
+
  
 
 flutter_launcher_icons:
