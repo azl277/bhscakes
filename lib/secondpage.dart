@@ -201,15 +201,15 @@ Widget _buildAnimatedProfileButton(bool isMobile) {
   final List<String> cakeImages = [
     "assets/cake.jpg", 
     "assets/cupcake.jpg",
-    // "assets/cakepop.jpg",
-    "assets/customise.jpg",
-  ];
+  //   "assets/cakepop.jpg",
+  //   "assets/customise.jpg",
+   ];
 
   final List<String> cakeNames = [
     "Cakes",
     "Cup Cakes",
     // "Popsicles & Cakesicles",
-    "Customise Your Cake",
+    // "Customise Your Cake",
   ];
 
   static const int _initialPage = 1000;
@@ -1120,17 +1120,19 @@ Future<void> _loadUserData() async {
     await prefs.reload();
     
     String loadedName = prefs.getString('username') ?? "User";
+    // Load previously saved location instantly so there is no UI jump
+    String savedLocalAddress = prefs.getString('userAddress') ?? "";
 
     if (mounted) {
       setState(() {
         userName = user == null ? "Guest" : loadedName;
-        userAddress = "Locating..."; 
+        userAddress = savedLocalAddress.isNotEmpty ? savedLocalAddress : "Locating..."; 
       });
     }
 
     bool foundSavedAddress = false;
 
-    // 1. FIREBASE CHECK
+    // 1. FIREBASE CHECK (For logged-in users)
     if (user != null) {
       try {
         final querySnapshot = await FirebaseFirestore.instance
@@ -1157,47 +1159,78 @@ Future<void> _loadUserData() async {
       }
     }
 
-    // 2. LIVE GPS FETCH (If no saved addresses exist)
+    // 2. LIVE GPS FETCH (If no saved addresses exist or user is Guest)
     if (!foundSavedAddress) {
-      try {
-        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) throw 'GPS Disabled';
+      await _fetchLiveLocationForAppBar();
+    }
+  }
 
-        LocationPermission permission = await Geolocator.checkPermission();
+  // 🟢 NEW: Robust Location Fetcher that waits for the user to click "Allow"
+  // 🟢 UPDATED: Fetches Location + PIN Code
+  Future<void> _fetchLiveLocationForAppBar() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) setState(() => userAddress = "Select Location");
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission(); // OS Dialog appears
         if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-          if (permission == LocationPermission.denied) throw 'Permission Denied';
+          if (mounted) setState(() => userAddress = "Select Location");
+          return;
         }
-        if (permission == LocationPermission.deniedForever) throw 'Permission Denied Forever';
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => userAddress = "Select Location");
+        return;
+      }
 
-        Position? position = await Geolocator.getLastKnownPosition();
-        position ??= await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high).timeout(const Duration(seconds: 5));
+      // Fetch GPS Coordinates
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
 
-        if (!kIsWeb) {
-          List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
-          if (placemarks.isNotEmpty) {
-            Placemark place = placemarks[0];
-            String finalAreaName = place.subLocality ?? place.locality ?? place.administrativeArea ?? "";
-            
-            if (finalAreaName.isNotEmpty) {
-              if (mounted) setState(() { 
-                userAddress = finalAreaName; 
-                _manualAddressController.text = finalAreaName;
-              });
-              return; 
-            }
+      if (!kIsWeb) {
+        List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+        if (placemarks.isNotEmpty) {
+          Placemark place = placemarks[0];
+          
+          // 1. Grab Area Name
+          String finalAreaName = "";
+          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+            finalAreaName = place.subLocality!;
+          } else if (place.locality != null && place.locality!.isNotEmpty) {
+            finalAreaName = place.locality!;
+          } else if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) {
+            finalAreaName = place.administrativeArea!;
+          }
+
+          // 2. Grab PIN Code
+          String pinCode = place.postalCode ?? "";
+
+          // 3. Combine them (e.g., "Edappally, 682024")
+          String displayLocation = finalAreaName;
+          if (displayLocation.isNotEmpty && pinCode.isNotEmpty) {
+            displayLocation = "$displayLocation, $pinCode";
+          } else if (displayLocation.isEmpty && pinCode.isNotEmpty) {
+            displayLocation = "PIN: $pinCode";
+          }
+          
+          if (displayLocation.isNotEmpty && mounted) {
+            setState(() { 
+              userAddress = displayLocation; 
+              _manualAddressController.text = displayLocation;
+            });
+            // Save to SharedPreferences so it loads instantly next time
+            final prefs = await SharedPreferences.getInstance();
+            prefs.setString('userAddress', displayLocation);
           }
         }
-      } catch (e) {
-        debugPrint("Auto-location failed: $e");
       }
-
-      // 3. FINAL FALLBACK
-      if (mounted) {
-        setState(() {
-          userAddress = "Select Location"; 
-        });
-      }
+    } catch (e) {
+      debugPrint("Auto-location failed: $e");
+      if (mounted) setState(() => userAddress = "Select Location");
     }
   }
   @override
@@ -1561,18 +1594,12 @@ Widget _buildLocationPill(bool isMobile) {
       child: InkWell(
         onTap: () {
           final user = FirebaseAuth.instance.currentUser;
-          if (user == null) {
-            if (!_isProfileExpanded) {
-              setState(() {
-                _isProfileExpanded = true;
-              });
-              Future.delayed(const Duration(seconds: 3), () {
-                 if (mounted && _isProfileExpanded) {
-                   setState(() => _isProfileExpanded = false);
-                 }
-              });
-            }
+          if (user == null || userAddress == "Select Location") {
+            // 🟢 If Guest OR location is missing, fetch live GPS immediately!
+            _showSnackBar("Locating you...");
+            _fetchLiveLocationForAppBar();
           } else {
+            // 🟢 Logged-in users open the saved address manager
             _showLocationDetailsDialog();
           }
         },

@@ -13,7 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:project/cakepage.dart'; // To access global cartList
 import 'package:project/cartpage1.dart';
 import 'package:project/Loginpage2.dart';
-import 'package:project/cupcakepage.dart'; 
+import 'package:project/cupcakepage.dart' hide cartList; 
 
 class DesktopScrollBehavior extends MaterialScrollBehavior {
   @override

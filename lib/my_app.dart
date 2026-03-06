@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🟢 Added for Push Notifications
 
 // --- RELATIVE IMPORTS ---
 import 'firstpage.dart';
@@ -16,7 +18,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // 🟢 1. Create a Global Navigator Key to control routing from the background
+  // 1. Create a Global Navigator Key to control routing from the background
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   
   StreamSubscription<DocumentSnapshot>? _shopStatusSub;
@@ -25,8 +27,58 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    
-    // 🟢 2. Background Listener for the Kill Switch
+    _listenToStoreStatus();
+    _setupPushNotifications(); // 🟢 Initialize Notifications on app start
+  }
+
+  // 🟢 NEW: SETUP PUSH NOTIFICATIONS & SAVE DEVICE TOKEN
+ // 🟢 DEBUG VERSION: SETUP PUSH NOTIFICATIONS
+  Future<void> _setupPushNotifications() async {
+    if (kIsWeb) return; 
+
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    debugPrint("🚀 FCM: Requesting permissions...");
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true, badge: true, sound: true,
+    );
+    debugPrint("🚀 FCM: Permission status: ${settings.authorizationStatus}");
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('🚀 FCM: Foreground Message Received!');
+    });
+
+    FirebaseAuth.instance.authStateChanges().listen((User? user) async {
+      debugPrint("🚀 FCM: Auth State Fired. User logged in? ${user != null}");
+      
+      if (user != null) {
+        try {
+          debugPrint("🚀 FCM: Attempting to fetch token from Google...");
+          String? token = await messaging.getToken();
+          
+          debugPrint("🚀 FCM: Token generated! -> $token");
+          
+          if (token != null) {
+            debugPrint("🚀 FCM: Saving token to Firestore for UID: ${user.uid}...");
+            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+              'fcmToken': token,
+            }, SetOptions(merge: true)); 
+            debugPrint("✅ FCM: Token successfully saved to database!");
+          }
+
+          messaging.onTokenRefresh.listen((newToken) {
+            FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+              'fcmToken': newToken,
+            }, SetOptions(merge: true));
+          });
+          
+        } catch (e) {
+          debugPrint("❌ FCM ERROR: Could not get token. Details: $e");
+        }
+      }
+    });
+  }
+  void _listenToStoreStatus() {
     _shopStatusSub = FirebaseFirestore.instance
         .collection('settings')
         .doc('store_status')
@@ -40,10 +92,9 @@ class _MyAppState extends State<MyApp> {
         
         bool isClosedNow = !isOpen && (resumeAt == null || resumeAt.isAfter(DateTime.now()));
         
-        // 🟢 3. If the store JUST changed from Open to Closed...
+        // If the store JUST changed from Open to Closed...
         if (isClosedNow && !_wasStoreClosed) {
-          // Kick everyone out of their current page (Cart, Menu, etc.) 
-          // back to the root Home Screen (Secondpage) where the Blur Overlay is.
+          // Kick everyone out of their current page back to the root Home Screen
           navigatorKey.currentState?.popUntil((route) => route.isFirst);
         }
         
@@ -61,7 +112,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // 🟢 4. Attach the Global Key so it can manage your screens
+      // Attach the Global Key so it can manage your screens
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Butter Hearts Cakes',
@@ -71,7 +122,7 @@ class _MyAppState extends State<MyApp> {
         brightness: Brightness.dark
       ),
       
-      // 🟢 5. Standard Auth check handles the login/home state natively
+      // Standard Auth check handles the login/home state natively
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, authSnapshot) {

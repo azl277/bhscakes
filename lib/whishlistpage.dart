@@ -486,7 +486,14 @@ class WishlistPage extends StatelessWidget {
   }
 
   // --- 🟢 CAKE CUSTOMIZATION MODAL ---
-  void _showCustomizeModal(BuildContext context, Map<String, String> item, Map<String, dynamic> availability, Map<String, int> availableFlavours, String uid) {
+  void _showCustomizeModal(
+    BuildContext context, 
+    Map<String, String> item, 
+    Map<String, dynamic> availability, 
+    Map<String, int> availableFlavours, 
+    String uid
+  ) {
+    // 1. Build Weight List
     List<String> sizes = [];
     if (availability['halfKg'] != false) sizes.add('0.5 Kg');
     if (availability['oneKg'] != false) sizes.add('1 Kg');
@@ -494,8 +501,12 @@ class WishlistPage extends StatelessWidget {
     if (availability['twoKg'] != false) sizes.add('2 Kg');
     if (availability['twoHalfKg'] != false) sizes.add('2.5 Kg');
     if (availability['threeKg'] != false) sizes.add('3 Kg');
-    if (sizes.isEmpty) sizes = ['0.5 Kg', '1 Kg', '1.5 Kg', '2 Kg', '2.5 Kg', '3 Kg'];
 
+    if (sizes.isEmpty) {
+      sizes = ['0.5 Kg', '1 Kg', '1.5 Kg', '2 Kg', '2.5 Kg', '3 Kg'];
+    }
+
+    // 2. Shapes
     List<String> shapes = [];
     if (availability['round'] != false) shapes.add('Round');
     if (availability['square'] != false) shapes.add('Square');
@@ -503,21 +514,50 @@ class WishlistPage extends StatelessWidget {
     if (shapes.isEmpty) shapes.addAll(['Round', 'Square', 'Heart']);
 
     final TextEditingController cakeWritingController = TextEditingController();
-    String priceString = (item['isOffer'] == 'true') ? item['offerPrice'] ?? '0' : item['price'] ?? '0';
-    int basePrice = int.tryParse(priceString.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
+    // 🟢 Price Parsing (Handles offers)
+    bool isOffer = item['isOffer'] == 'true';
+    String activePriceString = (isOffer && item['offerPrice'] != null && item['offerPrice']!.isNotEmpty) 
+        ? item['offerPrice']! 
+        : item['price'] ?? '0';
+        
+    int basePrice = int.tryParse(activePriceString.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    int originalBasePrice = int.tryParse((item['price'] ?? '0').replaceAll(RegExp(r'[^0-9]'), '')) ?? basePrice;
+
+    // Defaults
     String selectedShape = shapes.first;
     String selectedWeight = sizes.contains("1 Kg") ? "1 Kg" : sizes.first;
     String? selectedFlavourKey = availableFlavours.isNotEmpty ? availableFlavours.keys.first : null;
     int selectedFlavourPrice = availableFlavours.isNotEmpty ? availableFlavours.values.first : 0;
+
+    // 🟢 PRE-BUILD THE CAKE IMAGE WIDGET (Prevents flickering on state change)
+    final Widget cachedCakeImage = ClipRRect(
+      borderRadius: BorderRadius.circular(15), 
+      child: Container(
+        color: const Color(0xFFF9F9F9), // Light background for the image box
+        height: 100, width: 100, 
+        padding: const EdgeInsets.all(8),
+        child: Hero(
+          tag: "${item['name']}_modal_${item['id']}",
+          child: _buildImage(item['image']!)
+        ),
+      )
+    );
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (BuildContext context) {
+        
+        // Variables to hold the animated prices
+        int currentPrice = basePrice + selectedFlavourPrice;
+        int originalCurrentPrice = originalBasePrice + selectedFlavourPrice;
+
         return StatefulBuilder(
           builder: (context, setModalState) {
+            
+            // Price Calculation Logic
             double multiplier = 1.0;
             switch (selectedWeight) {
               case '0.5 Kg': multiplier = 0.5; break;
@@ -526,51 +566,127 @@ class WishlistPage extends StatelessWidget {
               case '2 Kg':   multiplier = 2.0; break;
               case '2.5 Kg': multiplier = 2.5; break;
               case '3 Kg':   multiplier = 3.0; break;
+              default:       multiplier = 1.0;
             }
 
-            int currentPrice = (basePrice * multiplier).toInt() + selectedFlavourPrice;
-            if (selectedShape == "Heart") currentPrice += 50; 
+            // Update current prices based on selections
+            currentPrice = (basePrice * multiplier).toInt() + selectedFlavourPrice;
+            originalCurrentPrice = (originalBasePrice * multiplier).toInt() + selectedFlavourPrice;
+            
+            if (selectedShape == "Heart") {
+              currentPrice += 50; 
+              originalCurrentPrice += 50;
+            }
 
             return Padding(
               padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
               child: Container(
-                height: MediaQuery.of(context).size.height * 0.85,
-                decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(35))),
+                width: MediaQuery.of(context).size.width > 600 ? 500 : double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white, 
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(35))
+                ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min, // 🟢 Adapts to content height perfectly
                   children: [
+                    // --- Drag Handle ---
                     const SizedBox(height: 12),
                     Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(10))),
+                    const SizedBox(height: 20),
                     
-                    Expanded(
+                    // --- Scrollable Content ---
+                    Flexible(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        physics: const BouncingScrollPhysics(),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header
+                            // 1. Header (Image & Name & Price)
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(15), 
-                                  child: SizedBox(height: 100, width: 100, child: _buildImage(item['image']))
-                                ),
+                                // 🟢 USE CACHED IMAGE HERE
+                                cachedCakeImage,
                                 const SizedBox(width: 20),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(item['name']!, style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold, color: _textDark, height: 1.1)),
+                                      Text(
+                                        item['name']!, 
+                                        style: GoogleFonts.playfairDisplay(fontSize: 24, fontWeight: FontWeight.bold, color: _textDark, height: 1.1)
+                                      ),
                                       const SizedBox(height: 8),
-                                      Text("₹$currentPrice", style: GoogleFonts.montserrat(fontSize: 22, fontWeight: FontWeight.bold, color: _primaryColor)),
+                                      
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          // 🟢 SMOOTH ROLLING PRICE ANIMATOR
+                                          TweenAnimationBuilder<double>(
+                                            duration: const Duration(milliseconds: 400),
+                                            curve: Curves.easeOutQuart,
+                                            tween: Tween<double>(begin: currentPrice.toDouble(), end: currentPrice.toDouble()),
+                                            builder: (context, value, child) {
+                                              return Text(
+                                                "₹${value.toInt()}",
+                                                style: GoogleFonts.montserrat(fontSize: 22, fontWeight: FontWeight.bold, color: _primaryColor),
+                                              );
+                                            },
+                                          ),
+                                          
+                                          // 🟢 SHOW STRIKETHROUGH ORIGINAL PRICE IF ON OFFER
+                                          if (isOffer) ...[
+                                            const SizedBox(width: 8),
+                                            Padding(
+                                              padding: const EdgeInsets.only(bottom: 2.0),
+                                              child: TweenAnimationBuilder<double>(
+                                                duration: const Duration(milliseconds: 400),
+                                                curve: Curves.easeOutQuart,
+                                                tween: Tween<double>(begin: originalCurrentPrice.toDouble(), end: originalCurrentPrice.toDouble()),
+                                                builder: (context, value, child) {
+                                                  return Text(
+                                                    "₹${value.toInt()}",
+                                                    style: GoogleFonts.montserrat(
+                                                      fontSize: 14, 
+                                                      fontWeight: FontWeight.w600, 
+                                                      color: Colors.grey.shade400,
+                                                      decoration: TextDecoration.lineThrough,
+                                                    ),
+                                                  );
+                                                }
+                                              ),
+                                            ),
+                                          ]
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 30),
+                            
+                            const SizedBox(height: 25),
 
-                            Text("Select Shape", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                            // 🟢 2. DESCRIPTION SECTION 
+                            if (item['desc'] != null && item['desc']!.isNotEmpty) ...[
+                              Text(
+                                "DESCRIPTION", 
+                                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2, color: Colors.grey.shade500)
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item['desc']!,
+                                style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: Colors.grey.shade700),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+
+                            Divider(color: Colors.grey.shade200, height: 1),
+                            const SizedBox(height: 25),
+
+                            // 3. Shape Selection
+                            Text("SELECT SHAPE", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0, color: Colors.black87)),
                             const SizedBox(height: 12),
                             Wrap(
                               spacing: 12, runSpacing: 12,
@@ -578,21 +694,25 @@ class WishlistPage extends StatelessWidget {
                                 bool isSelected = selectedShape == shape;
                                 return GestureDetector(
                                   onTap: () => setModalState(() => selectedShape = shape),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? _primaryColor : Colors.white,
+                                      color: isSelected ? _primaryColor.withOpacity(0.08) : Colors.white,
                                       borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: isSelected ? _primaryColor : Colors.grey.shade300),
+                                      border: Border.all(color: isSelected ? _primaryColor : Colors.grey.shade300, width: isSelected ? 2 : 1),
+                                      boxShadow: isSelected ? [BoxShadow(color: _primaryColor.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))] : [],
                                     ),
-                                    child: Text(shape, style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
+                                    child: Text(shape, style: GoogleFonts.inter(color: isSelected ? _primaryColor : Colors.black87, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600)),
                                   ),
                                 );
                               }).toList(),
                             ),
+
                             const SizedBox(height: 25),
 
-                            Text("Select Weight", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                            // 4. Weight Selection
+                            Text("SELECT WEIGHT", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0, color: Colors.black87)),
                             const SizedBox(height: 12),
                             Wrap(
                               spacing: 12, runSpacing: 12,
@@ -600,22 +720,26 @@ class WishlistPage extends StatelessWidget {
                                 bool isSelected = selectedWeight == weight;
                                 return GestureDetector(
                                   onTap: () => setModalState(() => selectedWeight = weight),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? _primaryColor : Colors.white,
+                                      color: isSelected ? _primaryColor.withOpacity(0.08) : Colors.white,
                                       borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: isSelected ? _primaryColor : Colors.grey.shade300),
+                                      border: Border.all(color: isSelected ? _primaryColor : Colors.grey.shade300, width: isSelected ? 2 : 1),
+                                      boxShadow: isSelected ? [BoxShadow(color: _primaryColor.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))] : [],
                                     ),
-                                    child: Text(weight, style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
+                                    child: Text(weight, style: GoogleFonts.inter(color: isSelected ? _primaryColor : Colors.black87, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600)),
                                   ),
                                 );
                               }).toList(),
                             ),
+
                             const SizedBox(height: 25),
 
+                            // 5. Flavor Selection
                             if (availableFlavours.isNotEmpty) ...[
-                              Text("Select Flavor", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                              Text("SELECT FLAVOR", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0, color: Colors.black87)),
                               const SizedBox(height: 12),
                               Wrap(
                                 spacing: 10, runSpacing: 10,
@@ -626,16 +750,18 @@ class WishlistPage extends StatelessWidget {
                                       selectedFlavourKey = entry.key;
                                       selectedFlavourPrice = entry.value;
                                     }),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? _textDark : Colors.grey.shade100,
+                                        color: isSelected ? _textDark : Colors.grey.shade50,
                                         borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: isSelected ? _textDark : Colors.transparent),
+                                        border: Border.all(color: isSelected ? _textDark : Colors.grey.shade300, width: isSelected ? 2 : 1),
+                                        boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))] : [],
                                       ),
                                       child: Text(
                                         "${entry.key} ${entry.value > 0 ? '(+₹${entry.value})' : ''}",
-                                        style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontSize: 12, fontWeight: FontWeight.w500),
+                                        style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.w600),
                                       ),
                                     ),
                                   );
@@ -644,29 +770,32 @@ class WishlistPage extends StatelessWidget {
                               const SizedBox(height: 25),
                             ],
 
-                            Text("Message on Cake", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                            // 6. Message Field
+                            Text("MESSAGE ON CAKE", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0, color: Colors.black87)),
                             const SizedBox(height: 12),
                             TextField(
                               controller: cakeWritingController,
                               maxLength: 30,
                               decoration: InputDecoration(
-                                hintText: "Happy Birthday Name...",
+                                hintText: "e.g. Happy Birthday Name...",
                                 hintStyle: GoogleFonts.inter(color: Colors.grey.shade400),
                                 filled: true,
                                 fillColor: Colors.grey.shade50,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey.shade300)),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey.shade300)),
                                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: _primaryColor, width: 1.5)),
                               ),
                             ),
-                            const SizedBox(height: 80), 
+                            const SizedBox(height: 40), 
                           ],
                         ),
                       ),
                     ),
 
+                    // --- Bottom Action Bar ---
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.fromLTRB(25, 20, 25, 35),
                       decoration: BoxDecoration(
                         color: Colors.white, 
                         boxShadow: [BoxShadow(blurRadius: 20, color: Colors.black.withOpacity(0.05), offset: const Offset(0, -5))]
@@ -682,16 +811,38 @@ class WishlistPage extends StatelessWidget {
                           ),
                           onPressed: () {
                             Navigator.pop(context); 
+                            
                             Map<String, int> flavors = {};
                             if(selectedFlavourKey != null) flavors[selectedFlavourKey!] = selectedFlavourPrice;
-                            _addToCartWithDetails(context, item, selectedShape, selectedWeight, currentPrice, flavors, cakeWritingController.text, uid);
+
+                            _addToCartWithDetails(
+                              context, 
+                              item, 
+                              selectedShape, 
+                              selectedWeight, 
+                              currentPrice, 
+                              flavors, 
+                              cakeWritingController.text, 
+                              uid
+                            );
                           },
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Icon(Icons.shopping_bag_outlined, color: Colors.white),
                               const SizedBox(width: 10),
-                              Text("ADD TO CART  •  ₹$currentPrice", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                              // 🟢 SMOOTH ROLLING COUNTER ON BUTTON
+                              TweenAnimationBuilder<double>(
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeOutQuart,
+                                tween: Tween<double>(begin: currentPrice.toDouble(), end: currentPrice.toDouble()),
+                                builder: (context, value, child) {
+                                  return Text(
+                                    "ADD TO CART  •  ₹${value.toInt()}",
+                                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -701,12 +852,11 @@ class WishlistPage extends StatelessWidget {
                 ),
               ),
             );
-          }
+          },
         );
       }
     );
   }
-
   // --- 🟢 ADDON MODAL ---
   void _showAddOnModal(BuildContext context, Map<String, String> item, String uid) {
     int quantity = 1;

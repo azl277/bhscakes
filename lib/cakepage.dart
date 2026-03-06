@@ -23,7 +23,7 @@ import 'cupcakepage.dart';
 import 'popsiclepage.dart';
 
 List<Map<String, dynamic>> cartList = [];
-
+ValueNotifier<int> cartCountNotifier = ValueNotifier<int>(0);
 List<Map<String, String>> wishlist = []; 
 
 class DesktopScrollBehavior extends MaterialScrollBehavior {
@@ -204,6 +204,77 @@ class _AddOnCardState extends State<AddOnCard> {
     );
   }
 }
+class FloatingMiniPng extends StatefulWidget {
+  final String path;
+  final Alignment align;
+  final double size;
+  final int duration;
+
+  const FloatingMiniPng({
+    super.key,
+    required this.path,
+    required this.align,
+    required this.size,
+    required this.duration,
+  });
+
+  @override
+  State<FloatingMiniPng> createState() => _FloatingMiniPngState();
+}
+
+class _FloatingMiniPngState extends State<FloatingMiniPng> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _movement;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: widget.duration),
+    )..repeat(reverse: true);
+
+    _movement = Tween<double>(begin: -25.0, end: 5.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: widget.align,
+      child: AnimatedBuilder(
+        animation: _movement,
+        builder: (context, child) {
+          return Transform.translate(
+            offset: Offset(0, _movement.value),
+            child: Opacity(
+              opacity: 0.85,
+              child: Image.asset(
+                widget.path,
+                width: widget.size,
+                height: widget.size,
+                fit: BoxFit.contain,
+                // 🟢 PREVENTS RED SCREEN IF IMAGE IS MISSING
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.bakery_dining, 
+                  size: widget.size * 0.5, 
+                  color: Colors.white24
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
 class CartBadge extends StatefulWidget {
   final VoidCallback onLoginSuccess;
 
@@ -223,6 +294,7 @@ class _CartBadgeState extends State<CartBadge> {
   Timer? _autoCloseTimer;
 
   bool get isLoggedIn => FirebaseAuth.instance.currentUser != null;
+  
 
   // 🟢 2. Helper function to start/reset the timer
   void _startAutoCloseTimer() {
@@ -245,89 +317,105 @@ class _CartBadgeState extends State<CartBadge> {
 
   @override
   Widget build(BuildContext context) {
-    double targetWidth = (!isLoggedIn && _isLoginPromptOpen) 
-        ? 130.0 
-        : (cartList.isNotEmpty && isLoggedIn ? 75.0 : 52.0);
+    // 🟢 LISTENS TO THE NOTIFIER AND ONLY REBUILDS THE BADGE
+    return ValueListenableBuilder<int>(
+      valueListenable: cartCountNotifier,
+      builder: (context, cartCount, child) {
+        
+        double targetWidth = (!isLoggedIn && _isLoginPromptOpen) 
+            ? 130.0 
+            : (cartCount > 0 && isLoggedIn ? 75.0 : 52.0);
 
-    return GestureDetector(
-      onTap: () async {
-        if (isLoggedIn) {
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => const Cartpage1()));
-          setState(() {}); 
-        } else {
-          setState(() {
-            _isLoginPromptOpen = !_isLoginPromptOpen;
-          }); 
-          
-          // 🟢 4. Start timer when opened
-          if (_isLoginPromptOpen) {
-            _startAutoCloseTimer();
-          }
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeOutBack,
-        height: 40,
-        width: targetWidth,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: _accentPink,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: _accentPink.withOpacity(0.4),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            )
-          ],
-        ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const NeverScrollableScrollPhysics(),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 20),
-              if (isLoggedIn && cartList.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Text(
-                  "${cartList.length}",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
+        return GestureDetector(
+          onTap: () async {
+            if (isLoggedIn) {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => const Cartpage1()));
+            } else {
+              setState(() {
+                _isLoginPromptOpen = !_isLoginPromptOpen;
+              }); 
+              
+              if (_isLoginPromptOpen) {
+                _startAutoCloseTimer(); 
+              }
+            }
+          },
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: _accentPink.withOpacity(0.4),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                )
               ],
-              if (!isLoggedIn && _isLoginPromptOpen) ...[
-                const SizedBox(width: 8),
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _isLoginPromptOpen ? 1.0 : 0.0,
-                  child: GestureDetector(
-                    onTap: () async {
-                      _autoCloseTimer?.cancel(); // Cancel timer if they click login
-                      await Navigator.push(context, MaterialPageRoute(builder: (context)=> Loginpage2()));
-                      if(mounted) setState(() => _isLoginPromptOpen = false);
-                      widget.onLoginSuccess();
-                    },
-                    child: Text(
-                      "Login",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
+            ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutBack,
+              width: targetWidth,
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: _accentPink,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(), 
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 20),
+
+                    // 🟢 USES THE LOCAL cartCount VARIABLE
+                    if (isLoggedIn && cartCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        "$cartCount",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                  ),
+                    ],
+
+                    if (!isLoggedIn && _isLoginPromptOpen) ...[
+                      const SizedBox(width: 8),
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _isLoginPromptOpen ? 1.0 : 0.0,
+                        child: GestureDetector(
+                          onTap: () async {
+                            _autoCloseTimer?.cancel(); 
+                            await Navigator.push(context, MaterialPageRoute(builder: (context)=> Loginpage2()));
+                            if(mounted) setState(() => _isLoginPromptOpen = false);
+                            widget.onLoginSuccess();
+                          },
+                          child: Text(
+                            "Login",
+                            softWrap: false,
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ]
+                  ],
                 ),
-              ]
-            ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -346,7 +434,8 @@ final GlobalKey _addOnsKey = GlobalKey();
   final GlobalKey _birthdayKey = GlobalKey();
   final GlobalKey _weddingKey = GlobalKey();
 
-
+// Add this near your other notifiers in _CakepageState
+  final ValueNotifier<bool> _isScrollingDown = ValueNotifier(false);
   // 🟢 1. Add this variable to manage the listener
   StreamSubscription<DatabaseEvent>? _cartSubscription;
   final Map<String, GlobalKey> _productKeys = {};
@@ -363,6 +452,8 @@ final GlobalKey _addOnsKey = GlobalKey();
   final ValueNotifier<bool> _showShadow = ValueNotifier(false);
   bool _isLoginPromptOpen = false;
 
+final ValueNotifier<double> _scrollOffset = ValueNotifier(0.0);
+final Map<String, String> _categoryThumbnails = {};
 PageController? _pageController;
   int _currentPage = 0;
   Timer? _timer;
@@ -479,43 +570,38 @@ Widget _buildPulsingTag(String tag) {
   
 }
 // 🟢 REPLACEMENT: Paste this INSIDE _CakepageState class
-  void _activateCartListener() {
+void _activateCartListener() {
     final user = FirebaseAuth.instance.currentUser;
-    
-    // 1. Cancel previous listener to prevent data leaks or duplicates
     _cartSubscription?.cancel(); 
 
-    // 2. If no user, clear cart and stop
     if (user == null) {
-      if (mounted) setState(() => cartList.clear());
+      cartList.clear();
+      cartCountNotifier.value = 0; // Update silently
       return;
     }
 
-    // 3. Listen to the NEW user's cart
     final ref = FirebaseDatabase.instance.ref().child('users/${user.uid}/cart');
 
     _cartSubscription = ref.onValue.listen((event) {
-      if (mounted) {
-        setState(() {
-          cartList.clear();
-          if (event.snapshot.exists) {
-            final data = event.snapshot.value as Map<dynamic, dynamic>;
-            data.forEach((key, value) {
-              cartList.add(Map<String, dynamic>.from(value));
-            });
-          }
+      // 🟢 NOTICE: NO setState() HERE ANYMORE! 
+      // This prevents the whole page from flashing.
+      cartList.clear();
+      if (event.snapshot.exists) {
+        final data = event.snapshot.value as Map<dynamic, dynamic>;
+        data.forEach((key, value) {
+          cartList.add(Map<String, dynamic>.from(value));
         });
       }
+      
+      // 🟢 This will safely trigger ONLY the cart badge to update
+      cartCountNotifier.value = cartList.length; 
     });
   }
- 
   @override
   void initState() {
     super.initState();
 
     _scrollController = ScrollController();
-    
-    // 🟢 3. Add the Scroll Listener
     _scrollController.addListener(_onScroll);
 
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -523,8 +609,10 @@ Widget _buildPulsingTag(String tag) {
     statusBarIconBrightness: Brightness.light,
     ));
     _activateCartListener();
-    _startAutoSlider();
+   
     _initController(false);
+
+    _preloadThumbnails();
     _scrollController.addListener(_onScroll);
 
     // 🟢 FIX 1: ROBUST QUERIES (Catches 'Cakes', 'cakes', 'Cake', etc.)
@@ -553,115 +641,31 @@ Widget _buildPulsingTag(String tag) {
       } else {
         if (_showShadow.value) _showShadow.value = false;
       }
+      
     });
+    _preloadThumbnails();
   }
+Future<void> _preloadThumbnails() async {
+    try {
+      // 1. Fetch dynamic categories assigned to the Cake page
+      final snap = await FirebaseFirestore.instance.collection('product_categories').where('type', isEqualTo: 'products').get();
+      List<String> categories = snap.docs.map((doc) => doc['name'].toString()).toList();
+      
+      // 2. Manually add Cupcakes since it routes to a different page
+      categories.add('Cupcakes'); 
 
-  final List<TextStyle Function({
-  Color? color,
-  double? fontSize,
-  FontWeight? fontWeight,
-})> sliderFonts = [
-  GoogleFonts.playfairDisplay,
-  GoogleFonts.oswald,
-  GoogleFonts.dancingScript,
-];
-
-final List<Map<String, String>> valentineMiniProducts = [
-  {
-    "name": "mini heart cake",
-    "price": "Rs 250",
-    "image": "assets/heartcake.webp",
-    "target": "BLACK FOREST",
-    
-  },
-  {
-    "name": "Red rose",
-    "price": "Rs 60",
-    "image": "assets/redrose.jpg",
-    "target": "Cake",
-  },
-  {
-    "name": "Chocolate",
-    "price": "Rs 70",
-    "image": "assets/chocolate1.webp",
-    "target": "CHOCOLATE",
-  },
-];
-
-
-
-final List<Map<String, dynamic>> highlightCakes = [
-  
-    {
-    "name": "Celebrate ",
-     "subTitle1": "Valentine's day",
-     "subTitle2": "with",
-     "subTitle3": "Butter hearts cakes",
-       "subTitle4": "redvelvet just 499",
-    "desc": "Fresh & Fruity",
-    "image": "assets/heart.png",
-    "price": "Rs 620",
-    "tag": "",
-    "font": GoogleFonts.poiretOne,
-    "subtitleFont1": GoogleFonts.arizonia,
-    "subtitleFont2": GoogleFonts.parisienne,
-    "subtitleFont3": GoogleFonts.cookie,  
-    "fontSize": 15.0,
-    "isValentine": true, // ✅ ADD THIS
-    "fontColor": Color.fromARGB(255, 255, 255, 255),
-    "gradient": const LinearGradient(
-      colors: [ const Color.fromARGB(255, 124, 12, 49),  const Color.fromARGB(255, 124, 12, 49),],
-    ),
-  },
- 
-  
-
-];
-
-
-
-// Widget _buildSliderTag(String tag) {
-//   Color bgColor;
-
-//   switch (tag) {
-//     case "":
-//       bgColor = Colors.greenAccent;
-//       break;
-//     case "":
-//       bgColor = Colors.orangeAccent;
-//       break;
-//     case "":
-//       bgColor = Colors.redAccent;
-//       break;
-//     default:
-//       bgColor = Colors.white;
-//   }
-
-//   return Container(
-//     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-//     decoration: BoxDecoration(
-//       borderRadius: BorderRadius.circular(20),
-//       color: bgColor.withOpacity(0.15),
-//       border: Border.all(color: bgColor.withOpacity(0.8)),
-//       boxShadow: [
-//         BoxShadow(
-//           color: bgColor.withOpacity(0.4),
-//           blurRadius: 10,
-//         ),
-//       ],
-//     ),
-//     child: Text(
-//       tag,
-//       style: GoogleFonts.inter(
-//         fontSize: 11,
-//         fontWeight: FontWeight.bold,
-//         color: bgColor,
-//         letterSpacing: 1,
-//       ),
-//     ),
-//   );
-// }
-
+      for (String cat in categories) {
+        String? url = await _getCategoryThumbnail(cat);
+        if (url != null && url.isNotEmpty && mounted) {
+          setState(() {
+            _categoryThumbnails[cat] = url;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error preloading thumbnails: $e");
+    }
+  }
 void _initController(bool isMobile) {
     double viewport = isMobile ? 1.0 : 0.6;
     if (_pageController == null) {
@@ -672,20 +676,7 @@ void _initController(bool isMobile) {
       _pageController = PageController(initialPage: _currentPage, viewportFraction: viewport);
     }
   }
-void _startAutoSlider() {
-    if (highlightCakes.length <= 1) return; // 🟢 FIXED: Stops slider if only 1 card exists
 
-    _timer = Timer.periodic(const Duration(seconds: 60), (_) {
-      if (_pageController?.hasClients ?? false) {
-        _currentPage++;
-        _pageController!.animateToPage(
-          _currentPage,
-          duration: const Duration(milliseconds: 900),
-          curve: Curves.easeInOutCubic,
-        );
-      }
-    });
-  }
 
 @override
   void dispose() {
@@ -697,15 +688,15 @@ void _startAutoSlider() {
       _scrollController.removeListener(_onScroll);
     }
     _scrollController.dispose();
-    
+    _scrollOffset.dispose();
     super.dispose();
   }
 
 void _onScroll() {
-  // If we scroll past 360 pixels (approaching the white section)
+ _scrollOffset.value = _scrollController.offset;
   bool shouldBeDark = _scrollController.offset > 360;
 
-  // Only update if the status has changed (prevents lag)
+ 
   if (shouldBeDark != _isStatusBarDark) {
     _isStatusBarDark = shouldBeDark;
     
@@ -726,10 +717,132 @@ Uint8List? safeBase64Decode(String? base64String) {
     return null;
   }
 }
+// 🟢 NEW: Fetches the image of the first product in a category
+  Future<String?> _getCategoryThumbnail(String categoryType) async {
+    try {
+      if (categoryType.toLowerCase() == 'cupcakes') {
+        final doc = await FirebaseFirestore.instance.collection('cupcakes').limit(1).get();
+        if (doc.docs.isNotEmpty) return doc.docs.first['image']?.toString();
+      } else {
+        // Query products exactly by the dynamic category name
+        final doc = await FirebaseFirestore.instance.collection('products')
+            .where('category', isEqualTo: categoryType)
+            .limit(1)
+            .get();
+        if (doc.docs.isNotEmpty) return doc.docs.first['image']?.toString();
+      }
+    } catch (e) {
+      debugPrint("Error fetching thumbnail for $categoryType: $e");
+    }
+    return null; 
+  }
+  // 🟢 REPLACEMENT 3: Dynamic Quick Categories Row
+  Widget _buildQuickCategories({bool isSticky = false}) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('product_categories')
+          .where('type', isEqualTo: 'products') // Only fetch Cake categories
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
 
+        // Sort locally by creation date
+        var sortedDocs = snapshot.data!.docs.toList();
+        sortedDocs.sort((a, b) {
+          Timestamp? tA = (a.data() as Map)['createdAt'] as Timestamp?;
+          Timestamp? tB = (b.data() as Map)['createdAt'] as Timestamp?;
+          if (tA == null || tB == null) return 0;
+          return tA.compareTo(tB);
+        });
 
-// 🟢 MINI HORIZONTAL CATEGORY – ADD ONS
+        // Build list of category maps
+        List<Map<String, dynamic>> quickCategories = sortedDocs.map((doc) {
+          String catName = doc['name'];
+          if (!_productKeys.containsKey(catName)) {
+            _productKeys[catName] = GlobalKey();
+          }
+          return {
+            "title": catName,
+            "type": catName,
+            "isRoute": false,
+            "key": _productKeys[catName],
+          };
+        }).toList();
 
+        // Inject Cupcakes manually at the 2nd position (index 1)
+        if (quickCategories.isNotEmpty) {
+          quickCategories.insert(1, {"title": "Cupcakes", "type": "Cupcakes", "isRoute": true});
+        } else {
+          quickCategories.add({"title": "Cupcakes", "type": "Cupcakes", "isRoute": true});
+        }
+
+        return Container(
+          height: isSticky ? 120 : 85, 
+          margin: EdgeInsets.zero,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: quickCategories.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 20),
+            itemBuilder: (context, index) {
+              final cat = quickCategories[index];
+              final String catType = cat['type'];
+              
+              return GestureDetector(
+                onTap: () {
+                  if (cat['isRoute'] == true) {
+                    if (cat['title'] == 'Cupcakes') {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const Cupcakepage()));
+                    }
+                  } else {
+                    final GlobalKey? key = cat['key'];
+                    if (key != null && key.currentContext != null) {
+                      Scrollable.ensureVisible(
+                        key.currentContext!,
+                        duration: const Duration(milliseconds: 800),
+                        curve: Curves.easeInOutCubic,
+                      );
+                    }
+                  }
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: isSticky ? 90 : 60,
+                      width: isSticky ? 90 : 60,
+                      padding: const EdgeInsets.all(4), 
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.grey.shade200),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(27.5),
+                        child: _categoryThumbnails.containsKey(catType)
+                            ? buildImage(_categoryThumbnails[catType]!, radius: 27.5)
+                            : const Center(child: Icon(Icons.cake_rounded, color: Color(0xFFFF2E74), size: 30)),
+                      ),
+                    ),
+                    SizedBox(height: isSticky ? 10 : 6),
+                    Text(
+                      cat['title'],
+                      style: GoogleFonts.inter(
+                        fontSize: isSticky ? 13 : 11, 
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      }
+    );
+  }
 Widget _buildValentineMiniCard(Map<String, String> item) {
   return Container(
     width: 95, 
@@ -945,290 +1058,329 @@ Future<void> _toggleWishlist(Map<String, String> item) async {
 // 🟢 REPLACEMENT: Replace your existing _showCustomizeModal with this improved version
 // 🟢 REPLACEMENT: Perfect Weight Logic (0.5 -> 3.0) with Dynamic Pricing
 void _showCustomizeModal(
-  Map<String, String> item,
-  Map<String, dynamic> availability,
-  Map<String, int> availableFlavours,
-) {
-  // 1. Build Weight List
-  List<String> sizes = [];
-  if (availability['halfKg'] != false) sizes.add('0.5 Kg');
-  if (availability['oneKg'] != false) sizes.add('1 Kg');
-  if (availability['oneHalfKg'] != false) sizes.add('1.5 Kg');
-  if (availability['twoKg'] != false) sizes.add('2 Kg');
-  if (availability['twoHalfKg'] != false) sizes.add('2.5 Kg');
-  if (availability['threeKg'] != false) sizes.add('3 Kg');
+    Map<String, String> item,
+    Map<String, dynamic> availability,
+    Map<String, int> availableFlavours,
+  ) {
+    // 1. Build Weight List
+    List<String> sizes = [];
+    if (availability['halfKg'] != false) sizes.add('0.5 Kg');
+    if (availability['oneKg'] != false) sizes.add('1 Kg');
+    if (availability['oneHalfKg'] != false) sizes.add('1.5 Kg');
+    if (availability['twoKg'] != false) sizes.add('2 Kg');
+    if (availability['twoHalfKg'] != false) sizes.add('2.5 Kg');
+    if (availability['threeKg'] != false) sizes.add('3 Kg');
 
-  if (sizes.isEmpty) {
-    sizes = ['0.5 Kg', '1 Kg', '1.5 Kg', '2 Kg', '2.5 Kg', '3 Kg'];
-  }
+    if (sizes.isEmpty) {
+      sizes = ['0.5 Kg', '1 Kg', '1.5 Kg', '2 Kg', '2.5 Kg', '3 Kg'];
+    }
 
-  // 2. Shapes
-  List<String> shapes = [];
-  if (availability['round'] != false) shapes.add('Round');
-  if (availability['square'] != false) shapes.add('Square');
-  if (availability['heart'] != false) shapes.add('Heart');
-  if (shapes.isEmpty) shapes.addAll(['Round', 'Square', 'Heart']);
+    // 2. Shapes
+    List<String> shapes = [];
+    if (availability['round'] != false) shapes.add('Round');
+    if (availability['square'] != false) shapes.add('Square');
+    if (availability['heart'] != false) shapes.add('Heart');
+    if (shapes.isEmpty) shapes.addAll(['Round', 'Square', 'Heart']);
 
-  final TextEditingController cakeWritingController = TextEditingController();
+    final TextEditingController cakeWritingController = TextEditingController();
 
-  // Price Parsing
-  String priceString = (item['isOffer'] == 'true') ? item['offerPrice']! : item['price']!;
-  int basePrice = int.tryParse(priceString.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    // 🟢 Price Parsing (Handles offers)
+    String priceString = (item['isOffer'] == 'true') ? item['offerPrice']! : item['price']!;
+    int basePrice = int.tryParse(priceString.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
-  // Defaults
-  String selectedShape = shapes.first;
-  String selectedWeight = sizes.contains("1 Kg") ? "1 Kg" : sizes.first;
-  String? selectedFlavourKey = availableFlavours.isNotEmpty ? availableFlavours.keys.first : null;
-  int selectedFlavourPrice = availableFlavours.isNotEmpty ? availableFlavours.values.first : 0;
+    // Defaults
+    String selectedShape = shapes.first;
+    String selectedWeight = sizes.contains("1 Kg") ? "1 Kg" : sizes.first;
+    String? selectedFlavourKey = availableFlavours.isNotEmpty ? availableFlavours.keys.first : null;
+    int selectedFlavourPrice = availableFlavours.isNotEmpty ? availableFlavours.values.first : 0;
 
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder: (BuildContext context) {
-      return StatefulBuilder(
-        builder: (context, setModalState) {
-          
-          // Price Calculation Logic
-          double multiplier = 1.0;
-          switch (selectedWeight) {
-            case '0.5 Kg': multiplier = 0.5; break;
-            case '1 Kg':   multiplier = 1.0; break;
-            case '1.5 Kg': multiplier = 1.5; break;
-            case '2 Kg':   multiplier = 2.0; break;
-            case '2.5 Kg': multiplier = 2.5; break;
-            case '3 Kg':   multiplier = 3.0; break;
-            default:       multiplier = 1.0;
-          }
+    // 🟢 PRE-BUILD THE IMAGE WIDGET (Prevents flickering on state change)
+    final Widget cachedCakeImage = ClipRRect(
+      borderRadius: BorderRadius.circular(15), 
+      child: SizedBox(
+        height: 100, 
+        width: 100, 
+        child: buildImage(item['image']!)
+      )
+    );
 
-          int currentPrice = (basePrice * multiplier).toInt() + selectedFlavourPrice;
-          if (selectedShape == "Heart") currentPrice += 50; 
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        
+        // Local variable to hold the animated price
+        int currentPrice = basePrice + selectedFlavourPrice;
 
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            child: Container(
-              height: MediaQuery.of(context).size.height * 0.85, // Slightly taller
-              decoration: const BoxDecoration(
-                color: Colors.white, 
-                borderRadius: BorderRadius.vertical(top: Radius.circular(35))
-              ),
-              child: Column(
-                children: [
-                  // --- Drag Handle ---
-                  const SizedBox(height: 12),
-                  Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(10))),
-                  
-                  // --- Scrollable Content ---
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 1. Header (Image & Name & Price)
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(15), 
-                                child: SizedBox(height: 100, width: 100, child: buildImage(item['image']!))
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(item['name']!, style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold, color: const Color.fromARGB(255, 177, 25, 25),height: 1.1,)),
-                                    const SizedBox(height: 8),
-                                    Text("Rs $currentPrice", style: GoogleFonts.montserrat(fontSize: 22, fontWeight: FontWeight.bold, color: _accentPink)),
-                                    const SizedBox(height: 8),
-                                    // Status tag
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(5)),
-                                      child: Text("In Stock", style: GoogleFonts.inter(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
-                                    )
-                                  ],
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            
+            // Price Calculation Logic
+            double multiplier = 1.0;
+            switch (selectedWeight) {
+              case '0.5 Kg': multiplier = 0.5; break;
+              case '1 Kg':   multiplier = 1.0; break;
+              case '1.5 Kg': multiplier = 1.5; break;
+              case '2 Kg':   multiplier = 2.0; break;
+              case '2.5 Kg': multiplier = 2.5; break;
+              case '3 Kg':   multiplier = 3.0; break;
+              default:       multiplier = 1.0;
+            }
+
+            // Update current price based on selections
+            currentPrice = (basePrice * multiplier).toInt() + selectedFlavourPrice;
+            if (selectedShape == "Heart") currentPrice += 50; 
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.85, 
+                decoration: const BoxDecoration(
+                  color: Colors.white, 
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(35))
+                ),
+                child: Column(
+                  children: [
+                    // --- Drag Handle ---
+                    const SizedBox(height: 12),
+                    Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(10))),
+                    
+                    // --- Scrollable Content ---
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. Header (Image & Name & Price)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // 🟢 USE CACHED IMAGE HERE
+                                cachedCakeImage,
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item['name']!, 
+                                        style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold, color: const Color.fromARGB(255, 177, 25, 25), height: 1.1)
+                                      ),
+                                      const SizedBox(height: 8),
+                                      
+                                      // 🟢 SMOOTH ROLLING PRICE ANIMATOR
+                                      TweenAnimationBuilder<double>(
+                                        duration: const Duration(milliseconds: 400),
+                                        curve: Curves.easeOutQuart,
+                                        tween: Tween<double>(begin: currentPrice.toDouble(), end: currentPrice.toDouble()),
+                                        builder: (context, value, child) {
+                                          return Text(
+                                            "Rs ${value.toInt()}",
+                                            style: GoogleFonts.montserrat(fontSize: 22, fontWeight: FontWeight.bold, color: _accentPink),
+                                          );
+                                        },
+                                      ),
+                                      
+                                      const SizedBox(height: 8),
+                                      // Status tag
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(5)),
+                                        child: Text("In Stock", style: GoogleFonts.inter(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
+                                      )
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          
-                          const SizedBox(height: 20),
-
-                          // 🟢 2. DESCRIPTION SECTION (Added Here)
-                          if (item['desc'] != null && item['desc']!.isNotEmpty) ...[
-                            Text(
-                              "DESCRIPTION", 
-                              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)
+                              ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              item['desc']!,
-                              style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: Colors.grey[600]),
-                            ),
+                            
                             const SizedBox(height: 20),
-                          ],
 
-                          const Divider(),
-                          const SizedBox(height: 20),
+                            // DESCRIPTION SECTION
+                            if (item['desc'] != null && item['desc']!.isNotEmpty) ...[
+                              Text(
+                                "DESCRIPTION", 
+                                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                item['desc']!,
+                                style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: Colors.grey[600]),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
 
-                          // 3. Shape Selection
-                          Text("Select Shape", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: Colors.black)),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 12, runSpacing: 12,
-                            children: shapes.map((shape) {
-                              bool isSelected = selectedShape == shape;
-                              return GestureDetector(
-                                onTap: () => setModalState(() => selectedShape = shape),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? _accentPink : Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: isSelected ? _accentPink : Colors.grey.shade300),
-                                   
-                                  ),
-                                  child: Text(shape, style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                            const Divider(),
+                            const SizedBox(height: 20),
 
-                          const SizedBox(height: 25),
-
-                          // 4. Weight Selection
-                          Text("Select Weight", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: Colors.black)),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 12, runSpacing: 12,
-                            children: sizes.map((weight) {
-                              bool isSelected = selectedWeight == weight;
-                              return GestureDetector(
-                                onTap: () => setModalState(() => selectedWeight = weight),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? _accentPink : Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: isSelected ? _accentPink : Colors.grey.shade300),
-                                    
-                                  ),
-                                  child: Text(weight, style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-
-                          const SizedBox(height: 25),
-
-                          // 5. Flavor Selection
-                          if (availableFlavours.isNotEmpty) ...[
-                            Text("Select Flavor", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: _accentPink)),
+                            // 3. Shape Selection
+                            Text("Select Shape", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: Colors.black)),
                             const SizedBox(height: 12),
                             Wrap(
-                              spacing: 10, runSpacing: 10,
-                              children: availableFlavours.entries.map((entry) {
-                                bool isSelected = selectedFlavourKey == entry.key;
+                              spacing: 12, runSpacing: 12,
+                              children: shapes.map((shape) {
+                                bool isSelected = selectedShape == shape;
                                 return GestureDetector(
-                                  onTap: () => setModalState(() {
-                                    selectedFlavourKey = entry.key;
-                                    selectedFlavourPrice = entry.value;
-                                  }),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  onTap: () => setModalState(() => selectedShape = shape),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? Colors.black : Colors.grey.shade100,
+                                      color: isSelected ? _accentPink : Colors.white,
                                       borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: isSelected ? Colors.black : Colors.transparent),
+                                      border: Border.all(color: isSelected ? _accentPink : Colors.grey.shade300),
                                     ),
-                                    child: Text(
-                                      "${entry.key} ${entry.value > 0 ? '(+₹${entry.value})' : ''}",
-                                      style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontSize: 12, fontWeight: FontWeight.w500),
-                                    ),
+                                    child: Text(shape, style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
                                   ),
                                 );
                               }).toList(),
                             ),
+
                             const SizedBox(height: 25),
-                          ],
 
-                          // 6. Message Field
-                          Text("Message on Cake", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: Colors.black)),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: cakeWritingController,
-                            maxLength: 30,
-                            decoration: InputDecoration(
-                              hintText: "Happy Birthday Name...",
-                              hintStyle: GoogleFonts.inter(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: _accentPink, width: 1.5)),
+                            // 4. Weight Selection
+                            Text("Select Weight", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: Colors.black)),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 12, runSpacing: 12,
+                              children: sizes.map((weight) {
+                                bool isSelected = selectedWeight == weight;
+                                return GestureDetector(
+                                  onTap: () => setModalState(() => selectedWeight = weight),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? _accentPink : Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: isSelected ? _accentPink : Colors.grey.shade300),
+                                    ),
+                                    child: Text(weight, style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
+                                  ),
+                                );
+                              }).toList(),
                             ),
-                          ),
-                          const SizedBox(height: 80), 
-                        ],
-                      ),
-                    ),
-                  ),
 
-                  // --- Bottom Action Bar ---
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white, 
-                      boxShadow: [BoxShadow(blurRadius: 20, color: Colors.black.withOpacity(0.05), offset: const Offset(0, -5))]
-                    ),
-                    child: SizedBox(
-                      width: double.infinity, 
-                      height: 55,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _accentPink,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))
-                        ),
-                        onPressed: () {
-                          Navigator.pop(context); 
-                          
-                          Map<String, int> flavors = {};
-                          if(selectedFlavourKey != null) flavors[selectedFlavourKey!] = selectedFlavourPrice;
+                            const SizedBox(height: 25),
 
-                          _addToCartWithDetails(
-                            item, 
-                            selectedShape, 
-                            selectedWeight, 
-                            currentPrice, 
-                            flavors, 
-                            cakeWritingController.text
-                          );
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.shopping_bag_outlined, color: Colors.white),
-                            const SizedBox(width: 10),
-                            Text("ADD TO CART  •  ₹$currentPrice", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                            // 5. Flavor Selection
+                            if (availableFlavours.isNotEmpty) ...[
+                              Text("Select Flavor", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: _accentPink)),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 10, runSpacing: 10,
+                                children: availableFlavours.entries.map((entry) {
+                                  bool isSelected = selectedFlavourKey == entry.key;
+                                  return GestureDetector(
+                                    onTap: () => setModalState(() {
+                                      selectedFlavourKey = entry.key;
+                                      selectedFlavourPrice = entry.value;
+                                    }),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? Colors.black : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: isSelected ? Colors.black : Colors.transparent),
+                                      ),
+                                      child: Text(
+                                        "${entry.key} ${entry.value > 0 ? '(+₹${entry.value})' : ''}",
+                                        style: GoogleFonts.inter(color: isSelected ? Colors.white : Colors.black87, fontSize: 12, fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 25),
+                            ],
+
+                            // 6. Message Field
+                            Text("Message on Cake", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16,color: Colors.black)),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: cakeWritingController,
+                              maxLength: 30,
+                              decoration: InputDecoration(
+                                hintText: "Happy Birthday Name...",
+                                hintStyle: GoogleFonts.inter(color: Colors.grey.shade400),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: _accentPink, width: 1.5)),
+                              ),
+                            ),
+                            const SizedBox(height: 80), 
                           ],
                         ),
                       ),
                     ),
-                  )
-                ],
+
+                    // --- Bottom Action Bar ---
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white, 
+                        boxShadow: [BoxShadow(blurRadius: 20, color: Colors.black.withOpacity(0.05), offset: const Offset(0, -5))]
+                      ),
+                      child: SizedBox(
+                        width: double.infinity, 
+                        height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _accentPink,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context); 
+                            
+                            Map<String, int> flavors = {};
+                            if(selectedFlavourKey != null) flavors[selectedFlavourKey!] = selectedFlavourPrice;
+
+                            _addToCartWithDetails(
+                              item, 
+                              selectedShape, 
+                              selectedWeight, 
+                              currentPrice, 
+                              flavors, 
+                              cakeWritingController.text
+                            );
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.shopping_bag_outlined, color: Colors.white),
+                              const SizedBox(width: 10),
+                              // 🟢 5. ROLLING COUNTER ON BUTTON
+                              TweenAnimationBuilder<double>(
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeOutQuart,
+                                tween: Tween<double>(begin: currentPrice.toDouble(), end: currentPrice.toDouble()),
+                                builder: (context, value, child) {
+                                  return Text(
+                                    "ADD TO CART  •  ₹${value.toInt()}",
+                                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
+            );
+          },
+        );
+      },
+    );
+  }
 Widget _buildAddOnsSection() {
   return StreamBuilder<QuerySnapshot>(
     stream: FirebaseFirestore.instance
@@ -1420,66 +1572,8 @@ void _addToCartWithDetails(Map<String, String> item, String shape, String weight
     debugPrint("Cart Sync Error: $e");
   }
 }
-Widget _buildMiniCategorySection(String title, String category, {required GlobalKey<State<StatefulWidget>> key}) {
-  final stream = _categoryStreams[category] ?? 
-      FirebaseFirestore.instance.collection('products').where('category', isEqualTo: category).snapshots();
-
-  return StreamBuilder<QuerySnapshot>(
-    stream: stream, 
-    builder: (context, snapshot) {
-      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-        return const SizedBox.shrink();
-      }
-      final products = snapshot.data!.docs;
-      
-      return Column(
-        key: key, 
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 12),
-            child: Text(
-              title, 
-              style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold, color: const Color.fromARGB(255, 0, 0, 0)),
-            ),
-          ),
-          SizedBox(
-            height: 200,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24), 
-              itemCount: products.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 18),
-              itemBuilder: (context, index) {
-                final data = products[index].data() as Map<String, dynamic>;
-                
-                final String name = data['name']?.toString() ?? '';
-                if (name.isNotEmpty && !_productKeys.containsKey(name)) {
-                  _productKeys[name] = GlobalKey();
-                }
-
-                // 🟢 PASSED CATEGORY HERE
-                final item = {
-                  'name': name,
-                  'price': data['price']?.toString() ?? 'Rs 0',
-                  'image': data['image']?.toString() ?? '',
-                  'category': data['category']?.toString() ?? 'AddOn', 
-                };
-
-                return _buildMiniAddOnCard(
-                  item,
-                  itemKey: _productKeys[name], 
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-      );
-    },
-  );
-}
-
+// 🟢 4. UPDATED ADD-ON CATEGORY SECTION
+ 
 Widget _buildMiniAddOnCard(Map<String, String> item, {GlobalKey? itemKey}) {
   return Container(
     key: itemKey,
@@ -1800,396 +1894,436 @@ Future<void> _addToCartSimple(Map<String, String> item) async {
     print("Error adding addon: $e");
   }
 }
- @override
+
+        // 2. THE APP BAR (Always on Top)
+    
+ 
+  @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final bool isMobile = size.width < 800;
-    
     _initController(isMobile);
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-      extendBodyBehindAppBar: false,
-      body: ScrollConfiguration(
-        behavior: DesktopScrollBehavior(),
-        child: Stack(
-          alignment: Alignment.topCenter, 
-          children: [
-            Positioned.fill(
-              child: SafeArea(
-                top: false, 
-                bottom: false,
-                child: NotificationListener<UserScrollNotification>(
-                  onNotification: (notification) {
-                    // 🟢 1. IGNORE HORIZONTAL SCROLLS
-                    // If the scroll is horizontal (like Add Ons or Slider), do nothing.
-                    if (notification.metrics.axis == Axis.horizontal) return false;
-
-                    // 🟢 2. Vertical Scroll Logic
-                    if (notification.direction == ScrollDirection.reverse) {
-                      // Scrolling Down -> Hide
-                      if (_showAppBar.value) _showAppBar.value = false;
-                    } else if (notification.direction == ScrollDirection.forward) {
-                      // Scrolling Up -> Show
-                      if (!_showAppBar.value) _showAppBar.value = true;
-                    }
-                    return true; 
-                  },
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    physics: isMobile
-                        ? const BouncingScrollPhysics()
-                        : const ClampingScrollPhysics(),
-                    child: Stack( 
-                      children: [
-                        // 1. TOP RED BACKGROUND
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 480, 
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Color.fromARGB(255, 124, 12, 49),
-                              borderRadius: BorderRadius.only(
-                                bottomLeft: Radius.circular(20), 
-                                bottomRight: Radius.circular(20),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // 2. BOTTOM LIGHT PINK BACKGROUND (Curved Top)
-                        Positioned.fill(
-                          child: Container(
-                            margin: const EdgeInsets.only(top: 460), 
-                            decoration: BoxDecoration(
-                              color: const Color.fromARGB(255, 255, 148, 184).withOpacity(0), 
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(20), 
-                                topRight: Radius.circular(20),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, -10),
-                                )
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // 3. SCROLLABLE CONTENT
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 100), 
-                            _buildHighlightSlider(isMobile),
-                            
-                            const SizedBox(height: 30), 
-                            _buildMiniCategorySection("Add Ons", "addons", key: _addOnsKey),
-                            
-                            const SizedBox(height: 20),
-                            _buildCategorySection("Cakes", "Cakes", key: _cakesKey),
-                            _buildCategorySection("Birthday Cakes", "birthday", key: _birthdayKey),
-                            _buildCategorySection("Wedding Cakes", "wedding", key: _weddingKey),
-                            
-                            const SizedBox(height: 100), 
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            
-            // 4. FLOATING APP BAR
-            Positioned(
-              top: 25,
-              left: 0,
-              right: 0,
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _showAppBar,
-                builder: (_, visible, __) {
-                  return AnimatedSlide(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOutCubic,
-                    offset: visible ? Offset.zero : const Offset(0, -1.5), 
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: visible ? 1 : 0,
-                      child: _buildElegantGlassAppBar(isMobile),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-Widget _buildCategorySection(String title, String category, {GlobalKey? key}) {
-  Stream<QuerySnapshot> stream;
-  if (_categoryStreams.containsKey(category)) {
-    stream = _categoryStreams[category]!;
-  } else {
-    stream = FirebaseFirestore.instance
-        .collection('products')
-        .where('category', isEqualTo: category)
-        .snapshots();
-  }
-
-  return StreamBuilder<QuerySnapshot>(
-    stream: stream,
-    builder: (context, snapshot) {
-      if (snapshot.hasError) return const SizedBox.shrink();
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const SizedBox(
-          height: 100,
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF2E74))),
-        );
-      }
-      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox.shrink();
-
-      final products = snapshot.data!.docs;
-      
-      // 🟢 UI FIX: Dynamic Grid Count based on width
-      final double width = MediaQuery.of(context).size.width;
-      final int crossAxisCount = width < 600 ? 2 : 4; 
-
-      return Column(
-        key: key,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: Colors.white,
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 15),
-            child: Row(
-              children: [
-                Container(
-                  height: 20, width: 4,
-                  decoration: BoxDecoration(
-                    color: _accentPink,
-                    borderRadius: BorderRadius.circular(3),
+          // 1. MAIN SCROLL AREA
+          NotificationListener<UserScrollNotification>(
+            onNotification: (notification) {
+              if (notification.metrics.axis == Axis.horizontal) return false;
+
+              if (notification.direction == ScrollDirection.reverse) {
+                if (_showAppBar.value) _showAppBar.value = false;
+              } else if (notification.direction == ScrollDirection.forward) {
+                if (!_showAppBar.value) _showAppBar.value = true;
+              }
+              return true;
+            },
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // 🟢 Purple Header
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      _buildTopBanner(isMobile),
+                      // 🟢 INCREASES SPACE BETWEEN PURPLE BANNER & QUICK CATEGORIES
+                      const SizedBox(height: 25), 
+                    ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 20, // Slightly smaller for compactness
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+
+                // 🟢 THE STICKY CATEGORIES
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: CategoryHeaderDelegate(
+                    showAppBar: _showAppBar, 
+                    child: _buildQuickCategories(), 
+                  ),
+                ),
+
+                // Product Lists
+            // 🟢 REPLACEMENT 4: Dynamic Vertical Product Sections
+                SliverToBoxAdapter(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('product_categories')
+                        .where('type', isEqualTo: 'products')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox(height: 300, child: Center(child: CircularProgressIndicator()));
+
+                      var sortedDocs = snapshot.data!.docs.toList();
+                      sortedDocs.sort((a, b) {
+                        Timestamp? tA = (a.data() as Map)['createdAt'] as Timestamp?;
+                        Timestamp? tB = (b.data() as Map)['createdAt'] as Timestamp?;
+                        if (tA == null || tB == null) return 0;
+                        return tA.compareTo(tB);
+                      });
+
+                      return Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          _buildMiniCategorySection("Add Ons", "addons", key: _addOnsKey), // Keep static add-ons
+                          
+                          // Generate Category Sections Dynamically
+                          ...sortedDocs.map((doc) {
+                            String catName = doc['name'];
+                            
+                            // Ensure key exists for scrolling
+                            if (!_productKeys.containsKey(catName)) {
+                              _productKeys[catName] = GlobalKey();
+                            }
+
+                            return _buildCategorySection(
+                              catName, // Title
+                              catName, // Category query string
+                              key: _productKeys[catName], // Dynamic scroll key
+                            );
+                          }).toList(),
+
+                          const SizedBox(height: 100),
+                        ],
+                      );
+                    }
                   ),
                 ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20), // Reduced outer padding
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: products.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 12, // 🟢 Tighter spacing
-                crossAxisSpacing: 12,
-                // 🟢 OPTIMIZED RATIO: 0.72 fits image + text perfectly on mobile
-                childAspectRatio: 0.72, 
-              ),
-              itemBuilder: (context, index) {
-                final doc = products[index];
-                final data = doc.data() as Map<String, dynamic>;
-                final String name = data['name']?.toString() ?? 'Unknown';
 
-                final Map<String, dynamic> rawFlavours =
-                    data['flavours'] is Map ? data['flavours'] as Map<String, dynamic> : {};
-                final Map<String, int> flavours = rawFlavours.map(
-                    (key, value) => MapEntry(key, int.tryParse(value.toString()) ?? 0));
-                
-                final Map<String, dynamic> availability = 
-                    data['availability'] is Map ? data['availability'] as Map<String, dynamic> : {};
-
-                if (name.isNotEmpty && !_productKeys.containsKey(name)) {
-                  _productKeys[name] = GlobalKey();
-                }
-
-           // 🟢 LOOK FOR THIS BLOCK IN CAKEPAGE.DART (Around line 520)
-                final Map<String, String> cakeItem = {
-                  'id': doc.id,
-                  'name': name,
-                  'category': data['category']?.toString() ?? 'Cake',
-                  'image': data['image']?.toString() ?? '',
-                  'price': data['price']?.toString() ?? 'Rs 0',
-                  
-                  // 🚨 THE ULTIMATE CATCH-ALL FIX:
-                  // Replace "YOUR_EXACT_FIREBASE_WORD" if you found a different word in Step 1!
-                  'desc': data['desc']?.toString() ?? 
-                          data['description']?.toString() ?? 
-                          data['details']?.toString() ?? 
-                          data['info']?.toString() ?? 
-                          data['subtitle']?.toString() ?? 
-                          'No description found in database', // Temporary text so we know if it fails
-                  
-                  'isAvailable': (data['isAvailable'] ?? true).toString(),
-                  'isOffer': (data['isOffer'] ?? false).toString(),
-                  'offerPrice': data['offerPrice']?.toString() ?? '',
-                };
-                
-                // 🐛 DEBUG PRINT: This will print the data to your terminal so you can see it!
-                debugPrint("CAKE ADDED: ${cakeItem['name']} | DESC: ${cakeItem['desc']}");
-                return _buildCompactCakeCard(
-                  cakeItem,
-                  availability,
-                  flavours,
-                  itemKey: _productKeys[name],
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      );
-    },
-  );
-}
- Widget _buildHighlightSlider(bool isMobile) {
-    final Size size = MediaQuery.of(context).size;
-    final double sliderHeight = isMobile ? 370.0 : 450.0;
-    
-    return SizedBox(
-      height: sliderHeight,
-      width: size.width,
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: highlightCakes.length, // 🟢 FIXED: Limit to actual cards
-        itemBuilder: (context, index) {
-          return AnimatedBuilder(
-            animation: _pageController!,
-            builder: (context, child) {
-              double value = 1.0;
-              if (_pageController!.position.haveDimensions) {
-                value = _pageController!.page! - index;
-                value = (1 - (value.abs() * 0.04)).clamp(0.96, 1.0);
-              }
-              return Center(
-                child: SizedBox(
-                  height: Curves.easeOut.transform(value) * sliderHeight,
-                  width: Curves.easeOut.transform(value) * size.width,
-                  child: child,
+          // 2. THE FLOATING APP BAR
+        // 2. THE FLOATING APP BAR
+          ValueListenableBuilder<bool>(
+            valueListenable: _showAppBar,
+            builder: (context, visible, child) {
+              return AnimatedPositioned(
+                // 🟢 INCREASED to 600ms for a slow, premium glide
+                duration: const Duration(milliseconds: 600),
+                // 🟢 CHANGED to easeInOutQuart for a buttery smooth stop
+                curve: Curves.easeInOutQuart,
+                top: visible ? MediaQuery.of(context).padding.top + 5 : -120, 
+                left: 0,
+                right: 0,
+                child: AnimatedOpacity(
+                  // 🟢 INCREASED to 400ms for a slower, elegant fade
+                  duration: const Duration(milliseconds: 400),
+                  opacity: visible ? 1 : 0,
+                  child: _buildElegantGlassAppBar(isMobile),
                 ),
               );
             },
-            child: _buildSliderCard(highlightCakes[index]),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
- Widget _buildSliderCard(Map<String, dynamic> item) {
-  final font = (item['font'] ?? GoogleFonts.playfairDisplay) as TextStyle Function({double? fontSize, FontWeight? fontWeight, Color? color});
-  final subtitleFont1 = (item['subtitleFont1'] ?? GoogleFonts.inter) as TextStyle Function({double? fontSize, FontWeight? fontWeight, Color? color});
-  final subtitleFont2 = (item['subtitleFont2'] ?? GoogleFonts.inter) as TextStyle Function({double? fontSize, FontWeight? fontWeight, Color? color});
-  final subtitleFont3 = (item['subtitleFont3'] ?? GoogleFonts.inter) as TextStyle Function({double? fontSize, FontWeight? fontWeight, Color? color});
-  final bool isValentine = item['isValentine'] == true;
-
-  return MouseRegion(
-    cursor: SystemMouseCursors.click,
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10.0), 
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        gradient: isValentine
-            ? const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.fromARGB(255, 124, 12, 49), Color.fromARGB(255, 124, 12, 49), Color.fromARGB(255, 124, 12, 49)])
-            : (item['gradient'] as LinearGradient?) ?? const LinearGradient(colors: [Color(0xFF2A2A2A), Color(0xFF111111)]),
-      
-        border: Border.all(color: const Color.fromARGB(255, 124, 12, 49), width: 0.5),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(25),  
-        child: Stack(
-          children: [
-            if (item['tag'] != null && item['tag'].toString().isNotEmpty)
-              Positioned(top: 18.0, left: 18.0, child: _buildPulsingTag(item['tag'].toString())),
-            
-            if (isValentine)
-              Positioned(
-                bottom: 15.0, 
-                left: 0.0, 
-                right: 0.0,
-                child: SizedBox(
-                  height: 135.0, 
-                  child: ListView( 
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    children: valentineMiniProducts.map((item) {
-                       return Padding(
-                         padding: const EdgeInsets.only(right: 10.0), 
-                         child: _buildValentineMiniCard(item)
-                       );
-                    }).toList(),
-                  ),
-                ),
-              ),
-
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 0, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 10.0),
-                        isValentine
-                            ? Transform.translate(
-                                offset: const Offset(55.0, -65.0),
-                                child: Text(item['name'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis, style: font(fontSize: item['fontSize'] ?? 10.0, fontWeight: FontWeight.bold, color: item['fontColor'] ?? Colors.white)),
-                              )
-                            : Text(item['name'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis, style: font(fontSize: item['fontSize'] ?? 15.0, fontWeight: FontWeight.bold, color: item['fontColor'] ?? Colors.white)),
-                        
-                        if (item['subTitle1'] != null)
-                          Transform.translate(offset: isValentine ? const Offset(20, -75) : Offset.zero, child: Text(item['subTitle1'], style: subtitleFont1(fontSize: 21.0, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(1)))),
-                        
-                        const SizedBox(height: 0.0),
-                        if (item['subTitle2'] != null)
-                          Transform.translate(offset: isValentine ? const Offset(85, -80) : Offset.zero, child: Text(item['subTitle2'], style: subtitleFont2(fontSize: 20.0, fontWeight: FontWeight.w500, color: Colors.white70))),
-                        
-                        if (item['subTitle3'] != null)
-                          Transform.translate(offset: isValentine ? const Offset(-5, -100) : Offset.zero, child: Text(item['subTitle3'], style: subtitleFont3(fontSize: 29.0, fontWeight: FontWeight.w500, color: Colors.white))),
-                        
-                        const SizedBox(height: 25.0),
-                      ],
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Padding(
-                    padding: isValentine ? const EdgeInsets.fromLTRB(10, 0, 20, 200) : const EdgeInsets.all(12.0),
-                    child: Hero(
-                      tag: "${item['name']}_slider", 
-                      // 🟢 WRAPPED IMAGE IN CLIPRRECT
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20.0), 
-                        child: Image.asset(item['image'] ?? '', fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.cake, size: 40.0, color: Colors.white24))
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+  // 🟢 Paste this right ABOVE your build method
+  Widget _buildTopBanner(bool isMobile) {
+    return Container(
+      // Increased height to cover the top App Bar area
+      height: isMobile ? 260 : 240, 
+      width: double.infinity,
+      // Padding inside pushes GIFs below the App Bar
+      padding: const EdgeInsets.only(top: 80), 
+      decoration: const BoxDecoration(
+        color: Color.fromARGB(255, 148, 4, 251),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(30), 
+          bottomRight: Radius.circular(30)
         ),
       ),
-    ),
-  );
-}
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Align(
+            alignment: const Alignment(-0.75, -0.2), 
+            child: Image.asset('assets/shop2.gif', height: isMobile ? 140 : 90)
+          ),
+          Align(
+            alignment: const Alignment(0.75, 0.0), 
+            child: Image.asset('assets/shop1.gif', height: isMobile ? 110 : 90)
+          ),
+          // Your floating mini PNGs
+          // FloatingMiniPng(path: 'assets/cook.png', align: const Alignment(-0.9, 1.2), size: 35, duration: 3),
+          // FloatingMiniPng(path: 'assets/cup.png', align: const Alignment(0, 0.6), size: 35, duration: 2),
+        ],
+      ),
+    );
+  }
+  // 🟢 REPLACEMENT 5: Direct Query Section Builders
+  Widget _buildCategorySection(String title, String category, {GlobalKey? key}) {
+    // Direct Query instead of Map
+    final stream = FirebaseFirestore.instance.collection('products').where('category', isEqualTo: category).snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return const SizedBox.shrink();
+        
+        final double width = MediaQuery.of(context).size.width;
+        final int crossAxisCount = width < 600 ? 2 : 4; 
+        
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildCategorySkeleton(title, crossAxisCount);
+        }
+        
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox.shrink();
+
+        final products = snapshot.data!.docs;
+
+        return Column(
+          key: key,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 15),
+              child: Row(
+                children: [
+                  Container(
+                    height: 20, width: 4,
+                    decoration: BoxDecoration(color: _accentPink, borderRadius: BorderRadius.circular(3)),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(title, style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: products.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.72, 
+                ),
+                itemBuilder: (context, index) {
+                  final doc = products[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final String name = data['name']?.toString() ?? 'Unknown';
+
+                  final Map<String, dynamic> rawFlavours = data['flavours'] is Map ? data['flavours'] as Map<String, dynamic> : {};
+                  final Map<String, int> flavours = rawFlavours.map((key, value) => MapEntry(key, int.tryParse(value.toString()) ?? 0));
+                  final Map<String, dynamic> availability = data['availability'] is Map ? data['availability'] as Map<String, dynamic> : {};
+
+                  if (name.isNotEmpty && !_productKeys.containsKey(name)) {
+                    _productKeys[name] = GlobalKey();
+                  }
+
+                  final Map<String, String> cakeItem = {
+                    'id': doc.id,
+                    'name': name,
+                    'category': data['category']?.toString() ?? 'Cake',
+                    'image': data['image']?.toString() ?? '',
+                    'price': data['price']?.toString() ?? 'Rs 0',
+                    'desc': data['desc']?.toString() ?? '',
+                    'isAvailable': (data['isAvailable'] ?? true).toString(),
+                    'isOffer': (data['isOffer'] ?? false).toString(),
+                    'offerPrice': data['offerPrice']?.toString() ?? '',
+                  };
+                  
+                  return _buildCompactCakeCard(cakeItem, availability, flavours, itemKey: _productKeys[name]);
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniCategorySection(String title, String category, {required GlobalKey<State<StatefulWidget>> key}) {
+    // Direct Query instead of Map
+    final stream = FirebaseFirestore.instance.collection('products').where('category', isEqualTo: category).snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream, 
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildMiniCategorySkeleton(title);
+        }
+        
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final products = snapshot.data!.docs;
+        
+        return Column(
+          key: key, 
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 12),
+              child: Text(title, style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold, color: const Color.fromARGB(255, 0, 0, 0))),
+            ),
+            SizedBox(
+              height: 200,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24), 
+                itemCount: products.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 18),
+                itemBuilder: (context, index) {
+                  final data = products[index].data() as Map<String, dynamic>;
+                  final String name = data['name']?.toString() ?? '';
+                  if (name.isNotEmpty && !_productKeys.containsKey(name)) {
+                    _productKeys[name] = GlobalKey();
+                  }
+
+                  final item = {
+                    'name': name,
+                    'price': data['price']?.toString() ?? 'Rs 0',
+                    'image': data['image']?.toString() ?? '',
+                    'category': data['category']?.toString() ?? 'AddOn', 
+                  };
+
+                  return _buildMiniAddOnCard(item, itemKey: _productKeys[name]);
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        );
+      },
+    );
+  }
+  Widget _buildCategorySkeleton(String title, int crossAxisCount) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 15),
+          child: Row(
+            children: [
+              Container(height: 20, width: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(3))),
+              const SizedBox(width: 10),
+              const SkeletonShimmer(width: 150, height: 24, borderRadius: 5),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: crossAxisCount * 2, // 2 rows of skeletons
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.72,
+            ),
+            itemBuilder: (context, index) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(8.0),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF9F9F9),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                        ),
+                        child: const SkeletonShimmer(width: double.infinity, height: double.infinity, borderRadius: 15),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonShimmer(width: double.infinity, height: 16, borderRadius: 4),
+                          SizedBox(height: 6),
+                          SkeletonShimmer(width: 80, height: 12, borderRadius: 4),
+                          SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              SkeletonShimmer(width: 50, height: 16, borderRadius: 4),
+                              SkeletonShimmer(width: 28, height: 28, borderRadius: 14),
+                            ],
+                          )
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildMiniCategorySkeleton(String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(24, 10, 24, 12),
+          child: SkeletonShimmer(width: 120, height: 24, borderRadius: 5, baseColor: Colors.white24, highlightColor: Colors.white54),
+        ),
+        SizedBox(
+          height: 200,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            itemCount: 4,
+            separatorBuilder: (_, __) => const SizedBox(width: 18),
+            itemBuilder: (context, index) {
+              return Container(
+                width: 140,
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 49, 0, 0),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                ),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SkeletonShimmer(width: double.infinity, borderRadius: 15, baseColor: Colors.white12, highlightColor: Colors.white24),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(10, 0, 10, 12),
+                      child: Column(
+                        children: [
+                          SkeletonShimmer(width: 90, height: 14, borderRadius: 4, baseColor: Colors.white12, highlightColor: Colors.white24),
+                          SizedBox(height: 8),
+                          SkeletonShimmer(width: 50, height: 14, borderRadius: 4, baseColor: Colors.white12, highlightColor: Colors.white24),
+                          SizedBox(height: 12),
+                          SkeletonShimmer(width: double.infinity, height: 26, borderRadius: 20, baseColor: Colors.white12, highlightColor: Colors.white24),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+ 
 Widget _buildCompactCakeCard(
   Map<String, String> item,
   Map<String, dynamic> availability,
@@ -2851,5 +2985,133 @@ bool _isInWishlist(String productName) {
   return wishlist.any((element) => element['name'] == productName);
 }
 
+
 }
 
+// 🟢 1. SKELETON SHIMMER WIDGET
+class SkeletonShimmer extends StatefulWidget {
+  final double? width;
+  final double? height;
+  final double borderRadius;
+  final Color? baseColor;
+  final Color? highlightColor;
+
+  const SkeletonShimmer({
+    super.key, 
+    this.width, 
+    this.height, 
+    this.borderRadius = 15,
+    this.baseColor,
+    this.highlightColor,
+  });
+
+  @override
+  State<SkeletonShimmer> createState() => _SkeletonShimmerState();
+}
+
+class _SkeletonShimmerState extends State<SkeletonShimmer> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this, 
+      duration: const Duration(milliseconds: 1000)
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.4, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+      child: Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: widget.baseColor ?? Colors.grey.shade200, 
+          borderRadius: BorderRadius.circular(widget.borderRadius)
+        ),
+      ),
+    );
+  }
+}class CategoryHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final ValueNotifier<bool> showAppBar;
+
+  CategoryHeaderDelegate({required this.child, required this.showAppBar});
+
+  @override
+  double get minExtent => 95.0; 
+  @override
+  double get maxExtent => 95.0; 
+
+  @override
+  Widget build(context, shrinkOffset, overlapsContent) {
+    final double safeAreaTop = MediaQuery.of(context).padding.top;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: showAppBar,
+      builder: (context, isVisible, _) {
+        
+        bool isPinned = shrinkOffset > 0 || overlapsContent;
+        
+        double yOffset = 0.0;
+        
+        if (isPinned) {
+          if (isVisible) {
+            yOffset = safeAreaTop + 70.0; 
+          } else {
+            yOffset = safeAreaTop; 
+          }
+        }
+
+        return Stack(
+          clipBehavior: Clip.none, 
+          children: [
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeInOutQuart,
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: -yOffset, 
+              // 🟢 CHANGED: This is now an AnimatedContainer!
+              child: AnimatedContainer(
+                // 🟢 MUST MATCH the 600ms duration so the icons glide with the background
+                duration: const Duration(milliseconds: 600), 
+                curve: Curves.easeInOutQuart,
+                decoration: BoxDecoration(
+                  color: Colors.white, 
+                  boxShadow: yOffset > safeAreaTop 
+                      ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))] 
+                      : [],
+                ),
+                // 🟢 Because it is an AnimatedContainer, this padding will now SLIDE slowly!
+                padding: EdgeInsets.only(top: yOffset + 5, bottom: 5),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: OverflowBox(
+                    minHeight: 0,
+                    maxHeight: 200, 
+                    alignment: Alignment.topCenter,
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant CategoryHeaderDelegate oldDelegate) => true;
+}
