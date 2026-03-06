@@ -19,21 +19,18 @@ class _SignupPageState extends State<SignupPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isWaitingForVerification = false;
 
-  // STEP 1: Create Account & Send Verification Link
   Future<void> _handleSignup() async {
     String email = _emailController.text.trim();
     String name = _nameController.text.trim();
     String password = _passwordController.text.trim();
 
-    if (name.isNotEmpty && email.endsWith("@gmail.com") && password.length >= 6) {
+    if (name.isNotEmpty &&
+        email.endsWith("@gmail.com") &&
+        password.length >= 6) {
       try {
-        // Create User in Firebase
-        UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
+        UserCredential userCredential = await _auth
+            .createUserWithEmailAndPassword(email: email, password: password);
 
-        // Send Verification Link to the user's email
         await userCredential.user!.sendEmailVerification();
 
         setState(() {
@@ -41,7 +38,9 @@ class _SignupPageState extends State<SignupPage> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Verification link sent! Please check your Gmail.")),
+          const SnackBar(
+            content: Text("Verification link sent! Please check your Gmail."),
+          ),
         );
       } on FirebaseAuthException catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -50,18 +49,18 @@ class _SignupPageState extends State<SignupPage> {
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Fill all fields correctly (Password: min 6 chars)")),
+        const SnackBar(
+          content: Text("Fill all fields correctly (Password: min 6 chars)"),
+        ),
       );
     }
   }
 
-  // STEP 2: Check if the user has clicked the link in their email
   Future<void> _checkVerificationStatus() async {
     User? user = _auth.currentUser;
-    await user?.reload(); // Refresh user data from Firebase
+    await user?.reload();
 
     if (user != null && user.emailVerified) {
-      // Save user details locally for the Profile Page
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('username', _nameController.text.trim());
       await prefs.setString("email", _emailController.text.trim());
@@ -69,13 +68,17 @@ class _SignupPageState extends State<SignupPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Email Verified! Welcome to Butter Hearts Cakes.")),
+          const SnackBar(
+            content: Text("Email Verified! Welcome to Butter Hearts Cakes."),
+          ),
         );
-        Navigator.pop(context, true); // Go back to Home/SecondPage
+        Navigator.pop(context, true);
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email not verified yet. Tap the link in your email.")),
+        const SnackBar(
+          content: Text("Email not verified yet. Tap the link in your email."),
+        ),
       );
     }
   }
@@ -87,13 +90,15 @@ class _SignupPageState extends State<SignupPage> {
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       body: Stack(
         children: [
-          // Background Image
           Container(
             decoration: const BoxDecoration(
-              image: DecorationImage(image: AssetImage("assets/aaaa.jpg"), fit: BoxFit.cover),
+              image: DecorationImage(
+                image: AssetImage("assets/aaaa.jpg"),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
-          // Glass Blur Effect
+
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -119,11 +124,15 @@ class _SignupPageState extends State<SignupPage> {
                         padding: const EdgeInsets.all(30),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
-                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                          ),
                         ),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 300),
-                          child: _isWaitingForVerification ? _buildVerifyUI() : _buildSignupUI(),
+                          child: _isWaitingForVerification
+                              ? _buildVerifyUI()
+                              : _buildSignupUI(),
                         ),
                       ),
                     ),
@@ -145,7 +154,12 @@ class _SignupPageState extends State<SignupPage> {
         const SizedBox(height: 15),
         _buildTextField(_emailController, "Gmail Address", Icons.email),
         const SizedBox(height: 15),
-        _buildTextField(_passwordController, "Password", Icons.lock_outline, isPassword: true),
+        _buildTextField(
+          _passwordController,
+          "Password",
+          Icons.lock_outline,
+          isPassword: true,
+        ),
         const SizedBox(height: 30),
         _buildActionButton("SIGN UP", _handleSignup),
       ],
@@ -156,9 +170,19 @@ class _SignupPageState extends State<SignupPage> {
     return Column(
       key: const ValueKey("VerifyStatus"),
       children: [
-        const Icon(Icons.mark_email_read_outlined, color: Colors.white, size: 50),
+        const Icon(
+          Icons.mark_email_read_outlined,
+          color: Colors.white,
+          size: 50,
+        ),
         const SizedBox(height: 15),
-        Text("Check Your Email", style: GoogleFonts.fahkwang(color: Colors.white, fontWeight: FontWeight.bold)),
+        Text(
+          "Check Your Email",
+          style: GoogleFonts.fahkwang(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 10),
         const Text(
           "We've sent a link to your Gmail. Click it, then tap the button below.",
@@ -169,8 +193,11 @@ class _SignupPageState extends State<SignupPage> {
         _buildActionButton("I HAVE VERIFIED", _checkVerificationStatus),
         TextButton(
           onPressed: () => setState(() => _isWaitingForVerification = false),
-          child: const Text("Go Back", style: TextStyle(color: Colors.white60, fontSize: 12)),
-        )
+          child: const Text(
+            "Go Back",
+            style: TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+        ),
       ],
     );
   }
@@ -184,12 +211,20 @@ class _SignupPageState extends State<SignupPage> {
           shape: const StadiumBorder(),
         ),
         onPressed: onPressed,
-        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12)),
+        child: Text(
+          text,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
       ),
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool isPassword = false}) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool isPassword = false,
+  }) {
     return TextField(
       controller: controller,
       obscureText: isPassword,
@@ -198,8 +233,12 @@ class _SignupPageState extends State<SignupPage> {
         prefixIcon: Icon(icon, color: Colors.white70, size: 18),
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
-        enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white30)),
-        focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.white30),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.white),
+        ),
       ),
     );
   }

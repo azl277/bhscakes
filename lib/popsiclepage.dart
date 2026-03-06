@@ -4,23 +4,22 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/gestures.dart'; 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// --- RELATIVE IMPORTS ---
-import 'package:project/cakepage.dart'; // To access global cartList
+import 'package:project/cakepage.dart';
 import 'package:project/cartpage1.dart';
 import 'package:project/Loginpage2.dart';
-import 'package:project/cupcakepage.dart' hide cartList; 
+import 'package:project/cupcakepage.dart' hide cartList;
 
 class DesktopScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+  };
 }
 
 class Popsiclepage extends StatefulWidget {
@@ -31,12 +30,10 @@ class Popsiclepage extends StatefulWidget {
 }
 
 class _PopsiclepageState extends State<Popsiclepage> {
-  // 🟢 Performance Fixes 
   final ValueNotifier<bool> _isAppBarVisible = ValueNotifier(true);
   final ValueNotifier<bool> _showShadow = ValueNotifier(false);
   double _lastScrollOffset = 0;
-  
-  // 🟢 Firestore Streams
+
   Stream<QuerySnapshot>? _popsiclesStream;
   Stream<QuerySnapshot>? _sliderStream;
   StreamSubscription<DatabaseEvent>? _cartSubscription;
@@ -44,7 +41,7 @@ class _PopsiclepageState extends State<Popsiclepage> {
   PageController? _pageController;
   int _currentPage = 0;
   Timer? _timer;
-  
+
   final ScrollController _scrollController = ScrollController();
   final Color _accentPink = const Color(0xFFFF2E74);
   final Color _bgBlack = const Color(0xFF050505);
@@ -52,19 +49,22 @@ class _PopsiclepageState extends State<Popsiclepage> {
   @override
   void initState() {
     super.initState();
-    // Initialize streams once to prevent rebuild crashes
-    _popsiclesStream = FirebaseFirestore.instance.collection('popsicles').snapshots();
-    _sliderStream = FirebaseFirestore.instance.collection('popsicle_slider').snapshots();
-    
-    _activateCartListener(); 
+
+    _popsiclesStream = FirebaseFirestore.instance
+        .collection('popsicles')
+        .snapshots();
+    _sliderStream = FirebaseFirestore.instance
+        .collection('popsicle_slider')
+        .snapshots();
+
+    _activateCartListener();
     _startAutoSlider();
-    _scrollController.addListener(_scrollListener); 
+    _scrollController.addListener(_scrollListener);
   }
 
-  // 🟢 CART LISTENER
   void _activateCartListener() {
     final user = FirebaseAuth.instance.currentUser;
-    _cartSubscription?.cancel(); 
+    _cartSubscription?.cancel();
 
     if (user == null) {
       if (mounted) setState(() => cartList.clear());
@@ -103,9 +103,13 @@ class _PopsiclepageState extends State<Popsiclepage> {
 
   void _initController(bool isMobile) {
     double viewport = isMobile ? 0.85 : 0.5;
-    if (_pageController == null || _pageController!.viewportFraction != viewport) {
+    if (_pageController == null ||
+        _pageController!.viewportFraction != viewport) {
       _pageController?.dispose();
-      _pageController = PageController(initialPage: 0, viewportFraction: viewport);
+      _pageController = PageController(
+        initialPage: 0,
+        viewportFraction: viewport,
+      );
     }
   }
 
@@ -127,25 +131,25 @@ class _PopsiclepageState extends State<Popsiclepage> {
     _timer?.cancel();
     _pageController?.dispose();
     _scrollController.dispose();
-    _cartSubscription?.cancel(); 
+    _cartSubscription?.cancel();
     _isAppBarVisible.dispose();
     _showShadow.dispose();
     super.dispose();
   }
 
-  // --- IMAGE HELPER ---
   Widget buildImage(String imageString) {
     try {
       if (imageString.startsWith('assets/')) {
         return Image.asset(imageString, fit: BoxFit.contain);
       } else if (imageString.startsWith('http')) {
-        return Image.network(imageString, fit: BoxFit.contain, cacheWidth: 300); 
+        return Image.network(imageString, fit: BoxFit.contain, cacheWidth: 300);
       } else {
         return Image.memory(
           base64Decode(imageString),
           fit: BoxFit.contain,
-          cacheWidth: 300, 
-          errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24),
+          cacheWidth: 300,
+          errorBuilder: (context, error, stackTrace) =>
+              const Icon(Icons.broken_image, color: Colors.white24),
         );
       }
     } catch (e) {
@@ -153,7 +157,6 @@ class _PopsiclepageState extends State<Popsiclepage> {
     }
   }
 
-  // --- AUTH HELPER ---
   bool get isLoggedIn => FirebaseAuth.instance.currentUser != null;
 
   void _showLoginRequiredDialog() {
@@ -161,22 +164,34 @@ class _PopsiclepageState extends State<Popsiclepage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        title: Text("Login Required", style: GoogleFonts.playfairDisplay(color: Colors.white)),
-        content: Text("Please login to add items to your cart.", style: GoogleFonts.inter(color: Colors.white70)),
+        title: Text(
+          "Login Required",
+          style: GoogleFonts.playfairDisplay(color: Colors.white),
+        ),
+        content: Text(
+          "Please login to add items to your cart.",
+          style: GoogleFonts.inter(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _accentPink),
             onPressed: () async {
-               Navigator.pop(context); 
-               await Navigator.push(context, MaterialPageRoute(builder: (context)=> Loginpage2()));
-               if(mounted) setState((){}); 
-            }, 
+              Navigator.pop(context);
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => Loginpage2()),
+              );
+              if (mounted) setState(() {});
+            },
             child: const Text("Login", style: TextStyle(color: Colors.white)),
-          )
+          ),
         ],
       ),
     );
@@ -188,14 +203,25 @@ class _PopsiclepageState extends State<Popsiclepage> {
       _showLoginRequiredDialog();
       return;
     }
-    final DatabaseReference wishlistRef = FirebaseDatabase.instance.ref().child('users/${user.uid}/wishlist');
+    final DatabaseReference wishlistRef = FirebaseDatabase.instance.ref().child(
+      'users/${user.uid}/wishlist',
+    );
     try {
-      final snapshot = await wishlistRef.orderByChild('name').equalTo(item['name']).get();
+      final snapshot = await wishlistRef
+          .orderByChild('name')
+          .equalTo(item['name'])
+          .get();
       if (snapshot.exists) {
         Map<dynamic, dynamic> data = snapshot.value as Map;
         String keyToDelete = data.keys.first;
         await wishlistRef.child(keyToDelete).remove();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Removed from Wishlist"), backgroundColor: Colors.black87));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Removed from Wishlist"),
+              backgroundColor: Colors.black87,
+            ),
+          );
       } else {
         await wishlistRef.push().set({
           'name': item['name'],
@@ -203,9 +229,15 @@ class _PopsiclepageState extends State<Popsiclepage> {
           'price': item['price'],
           'added_at': ServerValue.timestamp,
         });
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Added to Wishlist ❤️"), backgroundColor: Color(0xFFFF2E74)));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text("Added to Wishlist ❤️"),
+              backgroundColor: Color(0xFFFF2E74),
+            ),
+          );
       }
-      setState(() {}); 
+      setState(() {});
     } catch (e) {
       debugPrint("Wishlist Error: $e");
     }
@@ -217,11 +249,12 @@ class _PopsiclepageState extends State<Popsiclepage> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (BuildContext context) {
-        String selectedPack = "Box of 1"; 
-        
+        String selectedPack = "Box of 1";
+
         bool hasOffer = item['isOffer'] == 'true';
         String priceString = hasOffer ? item['offerPrice']! : item['price']!;
-        int basePrice = int.tryParse(priceString.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        int basePrice =
+            int.tryParse(priceString.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
         int currentPrice = basePrice;
 
         return StatefulBuilder(
@@ -236,12 +269,17 @@ class _PopsiclepageState extends State<Popsiclepage> {
 
             return Center(
               child: Container(
-                width: MediaQuery.of(context).size.width > 600 ? 500 : double.infinity,
-                height: 480, 
+                width: MediaQuery.of(context).size.width > 600
+                    ? 500
+                    : double.infinity,
+                height: 480,
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E1E1E),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30), bottom: Radius.circular(30)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                    bottom: Radius.circular(30),
+                  ),
                   border: Border.all(color: Colors.white.withOpacity(0.1)),
                 ),
                 child: Column(
@@ -249,8 +287,12 @@ class _PopsiclepageState extends State<Popsiclepage> {
                   children: [
                     Center(
                       child: Container(
-                        width: 40, height: 4,
-                        decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -260,7 +302,8 @@ class _PopsiclepageState extends State<Popsiclepage> {
                           borderRadius: BorderRadius.circular(15),
                           child: Container(
                             color: Colors.black38,
-                            height: 80, width: 80,
+                            height: 80,
+                            width: 80,
                             padding: const EdgeInsets.all(8),
                             child: buildImage(item['image']!),
                           ),
@@ -272,7 +315,11 @@ class _PopsiclepageState extends State<Popsiclepage> {
                             children: [
                               Text(
                                 item['name']!,
-                                style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
                               ),
                               const SizedBox(height: 5),
                               AnimatedSwitcher(
@@ -280,7 +327,11 @@ class _PopsiclepageState extends State<Popsiclepage> {
                                 child: Text(
                                   "Rs $currentPrice",
                                   key: ValueKey(currentPrice),
-                                  style: GoogleFonts.montserrat(fontSize: 20, fontWeight: FontWeight.w700, color: _accentPink),
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: _accentPink,
+                                  ),
                                 ),
                               ),
                             ],
@@ -292,39 +343,59 @@ class _PopsiclepageState extends State<Popsiclepage> {
                     const Divider(color: Colors.white12),
                     const SizedBox(height: 20),
 
-                    Text("Choose Pack Size", style: GoogleFonts.inter(color: Colors.white70, fontSize: 14)),
+                    Text(
+                      "Choose Pack Size",
+                      style: GoogleFonts.inter(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 12,
                       runSpacing: 12,
-                      children: ["Box of 1", "Box of 4", "Box of 8", "Box of 12"].map((pack) {
-                        bool isSelected = selectedPack == pack;
-                        return GestureDetector(
-                          onTap: () {
-                            setModalState(() {
-                              selectedPack = pack;
-                              currentPrice = calculatePrice(pack);
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isSelected ? _accentPink : Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: isSelected ? _accentPink : Colors.white24
-                              ),
-                            ),
-                            child: Text(
-                              pack,
-                              style: GoogleFonts.inter(
-                                color: isSelected ? Colors.white : Colors.white60,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                      children:
+                          ["Box of 1", "Box of 4", "Box of 8", "Box of 12"].map(
+                            (pack) {
+                              bool isSelected = selectedPack == pack;
+                              return GestureDetector(
+                                onTap: () {
+                                  setModalState(() {
+                                    selectedPack = pack;
+                                    currentPrice = calculatePrice(pack);
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? _accentPink
+                                        : Colors.white.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? _accentPink
+                                          : Colors.white24,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    pack,
+                                    style: GoogleFonts.inter(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.white60,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ).toList(),
                     ),
 
                     const Spacer(),
@@ -335,16 +406,26 @@ class _PopsiclepageState extends State<Popsiclepage> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _accentPink,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                           elevation: 10,
                         ),
                         onPressed: () {
-                          _addToCartWithDetails(item, selectedPack, "Rs $currentPrice");
+                          _addToCartWithDetails(
+                            item,
+                            selectedPack,
+                            "Rs $currentPrice",
+                          );
                           Navigator.pop(context);
                         },
                         child: Text(
                           "Add to Cart - Rs $currentPrice",
-                          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -358,36 +439,43 @@ class _PopsiclepageState extends State<Popsiclepage> {
     );
   }
 
-  void _addToCartWithDetails(Map<String, String> item, String quantity, String finalPrice) async {
-    if(!isLoggedIn) {
+  void _addToCartWithDetails(
+    Map<String, String> item,
+    String quantity,
+    String finalPrice,
+  ) async {
+    if (!isLoggedIn) {
       _showLoginRequiredDialog();
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    String currentSavedAddress = prefs.getString('userAddress') ?? "No Address Selected";
+    String currentSavedAddress =
+        prefs.getString('userAddress') ?? "No Address Selected";
 
-    int priceInt = int.tryParse(finalPrice.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    int priceInt =
+        int.tryParse(finalPrice.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
-    // Firebase Data Map
     Map<String, dynamic> cartItem = {
       'name': item['name'],
       'image': item['image'],
-      'selected_shape': 'Standard', 
-      'selected_weight': quantity,  
+      'selected_shape': 'Standard',
+      'selected_weight': quantity,
       'price': priceInt,
       'display_price': finalPrice,
       'quantity': 1,
-      'cakeWriting': 'No writing',  
-      'flavours': '{}',             
+      'cakeWriting': 'No writing',
+      'flavours': '{}',
       'delivery_address': currentSavedAddress,
       'category': 'Popsicle',
       'added_at': ServerValue.timestamp,
     };
 
     try {
-      DatabaseReference dbRef = FirebaseDatabase.instance.ref().child('users/${user!.uid}/cart');
+      DatabaseReference dbRef = FirebaseDatabase.instance.ref().child(
+        'users/${user!.uid}/cart',
+      );
       await dbRef.push().set(cartItem);
 
       if (mounted) {
@@ -406,8 +494,12 @@ class _PopsiclepageState extends State<Popsiclepage> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: _accentPink.withOpacity(0.5)),
                 boxShadow: [
-                   BoxShadow(color: _accentPink.withOpacity(0.2), blurRadius: 15, spreadRadius: -2)
-                ]
+                  BoxShadow(
+                    color: _accentPink.withOpacity(0.2),
+                    blurRadius: 15,
+                    spreadRadius: -2,
+                  ),
+                ],
               ),
               child: Row(
                 children: [
@@ -418,10 +510,19 @@ class _PopsiclepageState extends State<Popsiclepage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text("Added to Basket", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text(
+                          "Added to Basket",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         Text(
                           "${item['name']} ($quantity)",
-                          style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
+                          style: GoogleFonts.inter(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -459,41 +560,71 @@ class _PopsiclepageState extends State<Popsiclepage> {
         child: Stack(
           alignment: Alignment.topCenter,
           children: [
-            // 1. BACKGROUND 
-            Positioned.fill(child: Image.asset("assets/aaaa.jpg", fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.black))),
+            Positioned.fill(
+              child: Image.asset(
+                "assets/aaaa.jpg",
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) => Container(color: Colors.black),
+              ),
+            ),
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                    colors: [Colors.black.withOpacity(0.4), Colors.black.withOpacity(0.7), Colors.black.withOpacity(0.95), Colors.black],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.4),
+                      Colors.black.withOpacity(0.7),
+                      Colors.black.withOpacity(0.95),
+                      Colors.black,
+                    ],
                     stops: const [0.0, 0.4, 0.75, 1.0],
                   ),
                 ),
               ),
             ),
-            Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), child: Container(color: Colors.transparent))),
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
 
-            // 2. SCROLLABLE CONTENT
             SafeArea(
               bottom: false,
               child: CustomScrollView(
                 controller: _scrollController,
-                physics: isMobile ? const BouncingScrollPhysics() : const ClampingScrollPhysics(),
+                physics: isMobile
+                    ? const BouncingScrollPhysics()
+                    : const ClampingScrollPhysics(),
                 slivers: [
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
 
-                  // --- SLIDER ---
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: 280, 
-                      width: isMobile ? MediaQuery.of(context).size.width : 1000, 
+                      height: 280,
+                      width: isMobile
+                          ? MediaQuery.of(context).size.width
+                          : 1000,
                       child: StreamBuilder<QuerySnapshot>(
                         stream: _sliderStream,
                         builder: (context, snapshot) {
-                          if(snapshot.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator(color: _accentPink));
-                          if(!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                            return const Center(child: Text("Add Slider Items in Admin", style: TextStyle(color: Colors.white54)));
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting)
+                            return Center(
+                              child: CircularProgressIndicator(
+                                color: _accentPink,
+                              ),
+                            );
+                          if (!snapshot.hasData ||
+                              snapshot.data!.docs.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                "Add Slider Items in Admin",
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            );
                           }
 
                           final docs = snapshot.data!.docs;
@@ -502,24 +633,34 @@ class _PopsiclepageState extends State<Popsiclepage> {
                             controller: _pageController,
                             itemBuilder: (context, index) {
                               final dataIndex = index % docs.length;
-                              final data = docs[dataIndex].data() as Map<String, dynamic>;
-                              
+                              final data =
+                                  docs[dataIndex].data()
+                                      as Map<String, dynamic>;
+
                               Map<String, String> item = {
                                 "name": data['name'] ?? "Special Pop",
                                 "desc": data['desc'] ?? "Refreshing",
                                 "price": data['price']?.toString() ?? "Rs 0",
                                 "image": data['image'] ?? "",
-                                "isOffer": (data['isOffer'] ?? false).toString(),
-                                "offerPrice": data['offerPrice']?.toString() ?? "",
+                                "isOffer": (data['isOffer'] ?? false)
+                                    .toString(),
+                                "offerPrice":
+                                    data['offerPrice']?.toString() ?? "",
                               };
 
                               return AnimatedBuilder(
                                 animation: _pageController!,
                                 builder: (context, child) {
                                   double value = 1.0;
-                                  if (_pageController!.position.haveDimensions) {
-                                    value = (_pageController!.page ?? 0) - index;
-                                    value = (1 - (value.abs() * 0.20)).clamp(0.85, 1.0);
+                                  if (_pageController!
+                                      .position
+                                      .haveDimensions) {
+                                    value =
+                                        (_pageController!.page ?? 0) - index;
+                                    value = (1 - (value.abs() * 0.20)).clamp(
+                                      0.85,
+                                      1.0,
+                                    );
                                   }
                                   return Center(
                                     child: Transform.scale(
@@ -532,14 +673,13 @@ class _PopsiclepageState extends State<Popsiclepage> {
                               );
                             },
                           );
-                        }
+                        },
                       ),
                     ),
                   ),
-                  
+
                   const SliverToBoxAdapter(child: SizedBox(height: 30)),
 
-                  // --- GRID HEADER ---
                   SliverToBoxAdapter(
                     child: Center(
                       child: ConstrainedBox(
@@ -549,26 +689,58 @@ class _PopsiclepageState extends State<Popsiclepage> {
                           padding: const EdgeInsets.fromLTRB(20, 35, 20, 0),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.03),
-                            borderRadius: const BorderRadius.only(topLeft: Radius.circular(45), topRight: Radius.circular(45)),
-                            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(45),
+                              topRight: Radius.circular(45),
+                            ),
+                            border: Border(
+                              top: BorderSide(
+                                color: Colors.white.withOpacity(0.1),
+                              ),
+                            ),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text("Gourmet Popsicles", style: GoogleFonts.playfairDisplay(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
-                              
+                              Text(
+                                "Gourmet Popsicles",
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+
                               StreamBuilder<QuerySnapshot>(
                                 stream: _popsiclesStream,
                                 builder: (context, snapshot) {
-                                  int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                                  int count = snapshot.hasData
+                                      ? snapshot.data!.docs.length
+                                      : 0;
                                   return Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(border: Border.all(color: _accentPink.withOpacity(0.5)), borderRadius: BorderRadius.circular(20), color: _accentPink.withOpacity(0.1)),
-                                    child: Text("$count FLAVORS", style: GoogleFonts.inter(color: _accentPink, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: _accentPink.withOpacity(0.5),
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      color: _accentPink.withOpacity(0.1),
+                                    ),
+                                    child: Text(
+                                      "$count FLAVORS",
+                                      style: GoogleFonts.inter(
+                                        color: _accentPink,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   );
-                                }
-                              )
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -576,70 +748,101 @@ class _PopsiclepageState extends State<Popsiclepage> {
                     ),
                   ),
 
-                  // --- THE GRID ---
                   SliverToBoxAdapter(
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1200),
                         child: Container(
-                           decoration: BoxDecoration(
+                          decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.03),
                           ),
                           child: StreamBuilder<QuerySnapshot>(
                             stream: _popsiclesStream,
-                            builder: (context, AsyncSnapshot<QuerySnapshot> streamSnapshot) {
-                              if (streamSnapshot.connectionState == ConnectionState.waiting) {
-                                return const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(40.0),
-                                    child: CircularProgressIndicator(color: Colors.pink)
-                                  )
-                                );
-                              }
-                              if (!streamSnapshot.hasData || streamSnapshot.data!.docs.isEmpty) {
-                                return const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(40.0),
-                                    child: Text("No popsicles available", style: TextStyle(color: Colors.grey))
-                                  )
-                                );
-                              }
+                            builder:
+                                (
+                                  context,
+                                  AsyncSnapshot<QuerySnapshot> streamSnapshot,
+                                ) {
+                                  if (streamSnapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(40.0),
+                                        child: CircularProgressIndicator(
+                                          color: Colors.pink,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  if (!streamSnapshot.hasData ||
+                                      streamSnapshot.data!.docs.isEmpty) {
+                                    return const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(40.0),
+                                        child: Text(
+                                          "No popsicles available",
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                    );
+                                  }
 
-                              final itemsData = streamSnapshot.data!.docs;
-                              int crossAxisCount = isMobile ? 2 : 4;
+                                  final itemsData = streamSnapshot.data!.docs;
+                                  int crossAxisCount = isMobile ? 2 : 4;
 
-                              return Padding(
-                                padding: const EdgeInsets.fromLTRB(20, 25, 20, 100),
-                                child: GridView.builder(
-                                  padding: EdgeInsets.zero,
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount, 
-                                    crossAxisSpacing: 18,
-                                    mainAxisSpacing: 18,
-                                    childAspectRatio: 0.72,
-                                  ),
-                                  itemCount: itemsData.length,
-                                  itemBuilder: (context, index) {
-                                    Map<String, dynamic> data = itemsData[index].data() as Map<String, dynamic>;
-                                    
-                                    Map<String, String> item = {
-                                      "id": itemsData[index].id,
-                                      "name": data['name']?.toString() ?? "Popsicle",
-                                      "price": data['price']?.toString() ?? "Rs 0",
-                                      "desc": data['desc']?.toString() ?? "Tasty",
-                                      "image": data['image']?.toString() ?? "",
-                                      "isAvailable": (data['isAvailable'] ?? true).toString(),
-                                      "isOffer": (data['isOffer'] ?? false).toString(),
-                                      "offerPrice": data['offerPrice']?.toString() ?? "",
-                                    };
+                                  return Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      25,
+                                      20,
+                                      100,
+                                    ),
+                                    child: GridView.builder(
+                                      padding: EdgeInsets.zero,
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: crossAxisCount,
+                                            crossAxisSpacing: 18,
+                                            mainAxisSpacing: 18,
+                                            childAspectRatio: 0.72,
+                                          ),
+                                      itemCount: itemsData.length,
+                                      itemBuilder: (context, index) {
+                                        Map<String, dynamic> data =
+                                            itemsData[index].data()
+                                                as Map<String, dynamic>;
 
-                                    return _buildCompactCakeCard(item);
-                                  },
-                                ),
-                              );
-                            },
+                                        Map<String, String> item = {
+                                          "id": itemsData[index].id,
+                                          "name":
+                                              data['name']?.toString() ??
+                                              "Popsicle",
+                                          "price":
+                                              data['price']?.toString() ??
+                                              "Rs 0",
+                                          "desc":
+                                              data['desc']?.toString() ??
+                                              "Tasty",
+                                          "image":
+                                              data['image']?.toString() ?? "",
+                                          "isAvailable":
+                                              (data['isAvailable'] ?? true)
+                                                  .toString(),
+                                          "isOffer": (data['isOffer'] ?? false)
+                                              .toString(),
+                                          "offerPrice":
+                                              data['offerPrice']?.toString() ??
+                                              "",
+                                        };
+
+                                        return _buildCompactCakeCard(item);
+                                      },
+                                    ),
+                                  );
+                                },
                           ),
                         ),
                       ),
@@ -649,10 +852,8 @@ class _PopsiclepageState extends State<Popsiclepage> {
               ),
             ),
 
-            // 3. ELEGANT GLASS APP BAR
-            // 🟢 CRITICAL FIX: Positioned is now a direct child of the Stack
             Positioned(
-              top: isMobile ? 10 : 25, 
+              top: isMobile ? 10 : 25,
               left: 0,
               right: 0,
               child: SafeArea(
@@ -662,14 +863,14 @@ class _PopsiclepageState extends State<Popsiclepage> {
                     return AnimatedSlide(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOutCubic,
-                      offset: visible ? Offset.zero : const Offset(0, -1.5), 
+                      offset: visible ? Offset.zero : const Offset(0, -1.5),
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 200),
                         opacity: visible ? 1 : 0,
                         child: _buildElegantGlassAppBar(isMobile),
                       ),
                     );
-                  }
+                  },
                 ),
               ),
             ),
@@ -679,7 +880,6 @@ class _PopsiclepageState extends State<Popsiclepage> {
     );
   }
 
-  // --- NORMAL SLIDER CARD ---
   Widget _buildNormalSliderCard(Map<String, String> item) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -693,35 +893,63 @@ class _PopsiclepageState extends State<Popsiclepage> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: Opacity(
-                opacity: 0.15,
-                child: buildImage(item['image']!), 
-              ),
+              child: Opacity(opacity: 0.15, child: buildImage(item['image']!)),
             ),
-            
+
             Row(
               children: [
                 Expanded(
                   flex: 3,
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 20, top: 20, bottom: 20),
+                    padding: const EdgeInsets.only(
+                      left: 20,
+                      top: 20,
+                      bottom: 20,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-                          child: Text(item['desc']!.toUpperCase(), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: _accentPink)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            item['desc']!.toUpperCase(),
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: _accentPink,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 10),
-                        Text(item['name']!, style: GoogleFonts.playfairDisplay(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1)),
+                        Text(
+                          item['name']!,
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.1,
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: _accentPink, shape: const StadiumBorder()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _accentPink,
+                            shape: const StadiumBorder(),
+                          ),
                           onPressed: () => _showCustomizeModal(item),
-                          child: const Text("Order Now", style: TextStyle(color: Colors.white)),
-                        )
+                          child: const Text(
+                            "Order Now",
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -730,7 +958,10 @@ class _PopsiclepageState extends State<Popsiclepage> {
                   flex: 2,
                   child: Padding(
                     padding: const EdgeInsets.all(10.0),
-                    child: Hero(tag: "${item['name']}_slider", child: buildImage(item['image']!)),
+                    child: Hero(
+                      tag: "${item['name']}_slider",
+                      child: buildImage(item['image']!),
+                    ),
                   ),
                 ),
               ],
@@ -740,8 +971,6 @@ class _PopsiclepageState extends State<Popsiclepage> {
       ),
     );
   }
-
-  // --- GRID CARD ---
   Widget _buildCompactCakeCard(Map<String, String> item) {
     bool isAvailable = item['isAvailable'] != 'false';
     bool isOffer = item['isOffer'] == 'true';
@@ -750,13 +979,21 @@ class _PopsiclepageState extends State<Popsiclepage> {
     final user = FirebaseAuth.instance.currentUser;
 
     return MouseRegion(
-      cursor: isAvailable ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+      cursor: isAvailable
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.forbidden,
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(25),
           border: Border.all(color: Colors.white.withOpacity(0.05)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0,5))]
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -767,79 +1004,202 @@ class _PopsiclepageState extends State<Popsiclepage> {
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.3), borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(15.0),
                       child: Opacity(
                         opacity: isAvailable ? 1.0 : 0.4,
-                        child: Hero(tag: "${item['name']}_grid_${item['id']}", child: buildImage(item['image']!)),
+                        child: Hero(
+                          tag: "${item['name']}_grid_${item['id']}",
+                          child: buildImage(item['image']!),
+                        ),
                       ),
                     ),
                   ),
-                  
+
                   if (!isAvailable)
-                    Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: Colors.black.withOpacity(0.8), borderRadius: BorderRadius.circular(5), border: Border.all(color: Colors.red.withOpacity(0.5))), child: Text("SOLD OUT", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)))),
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                            color: Colors.red.withOpacity(0.5),
+                          ),
+                        ),
+                        child: Text(
+                          "SOLD OUT",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ),
 
                   if (isAvailable && isOffer)
-                    Positioned(top: 15, left: 15, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(8)), child: Text("OFFER", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 8)))),
+                    Positioned(
+                      top: 15,
+                      left: 15,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "OFFER",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 8,
+                          ),
+                        ),
+                      ),
+                    ),
 
                   Positioned(
-                    bottom: 12, right: 12,
+                    bottom: 12,
+                    right: 12,
                     child: InkWell(
-                      onTap: isAvailable ? () => _showCustomizeModal(item) : null,
-                      child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: isAvailable ? Colors.white : Colors.grey, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.white.withOpacity(0.1), blurRadius: 10)]), child: Icon(Icons.add, color: _bgBlack, size: 20)),
+                      onTap: isAvailable
+                          ? () => _showCustomizeModal(item)
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isAvailable ? Colors.white : Colors.grey,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.1),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: Icon(Icons.add, color: _bgBlack, size: 20),
+                      ),
                     ),
                   ),
-                  
-                  // Firebase Wishlist
+
                   Positioned(
-                    top: 15, right: 15,
-                    child: StreamBuilder( 
-                      stream: user != null 
-                        ? FirebaseDatabase.instance.ref().child('users/${user.uid}/wishlist').orderByChild('name').equalTo(item['name']).onValue 
-                        : null,
-                      builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                        bool liked = snapshot.hasData && snapshot.data!.snapshot.exists;
-                        
-                        return GestureDetector(
-                          onTap: () => _toggleRealtimeWishlist(item),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
-                            child: Icon(
-                              liked ? Icons.favorite : Icons.favorite_border,
-                              color: liked ? _accentPink : Colors.white70,
-                              size: 18,
-                            ),
-                          ),
-                        );
-                      }
+                    top: 15,
+                    right: 15,
+                    child: StreamBuilder(
+                      stream: user != null
+                          ? FirebaseDatabase.instance
+                                .ref()
+                                .child('users/${user.uid}/wishlist')
+                                .orderByChild('name')
+                                .equalTo(item['name'])
+                                .onValue
+                          : null,
+                      builder:
+                          (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                            bool liked =
+                                snapshot.hasData &&
+                                snapshot.data!.snapshot.exists;
+
+                            return GestureDetector(
+                              onTap: () => _toggleRealtimeWishlist(item),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  liked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: liked ? _accentPink : Colors.white70,
+                                  size: 18,
+                                ),
+                              ),
+                            );
+                          },
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             Padding(
               padding: const EdgeInsets.fromLTRB(15, 0, 15, 15),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item['name']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.bold, fontSize: 16, color: isAvailable ? Colors.white : Colors.white38)),
+                  Text(
+                    item['name']!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.playfairDisplay(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: isAvailable ? Colors.white : Colors.white38,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(item['desc']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 11, color: Colors.white38)),
+                  Text(
+                    item['desc']!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.white38,
+                    ),
+                  ),
                   const SizedBox(height: 8),
 
                   if (isAvailable && isOffer)
                     Row(
                       children: [
-                        Text(item['price']!, style: GoogleFonts.montserrat(color: Colors.white54, fontWeight: FontWeight.w500, fontSize: 12, decoration: TextDecoration.lineThrough)),
+                        Text(
+                          item['price']!,
+                          style: GoogleFonts.montserrat(
+                            color: Colors.white54,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Text("Rs $offerPrice", style: GoogleFonts.montserrat(color: Colors.greenAccent, fontWeight: FontWeight.w700, fontSize: 15)),
+                        Text(
+                          "Rs $offerPrice",
+                          style: GoogleFonts.montserrat(
+                            color: Colors.greenAccent,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
                       ],
                     )
                   else
-                    Text(item['price']!, style: GoogleFonts.montserrat(color: _accentPink, fontWeight: FontWeight.w700, fontSize: 15, shadows: [Shadow(color: _accentPink.withOpacity(0.5), blurRadius: 10)])),
+                    Text(
+                      item['price']!,
+                      style: GoogleFonts.montserrat(
+                        color: _accentPink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        shadows: [
+                          Shadow(
+                            color: _accentPink.withOpacity(0.5),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -849,12 +1209,7 @@ class _PopsiclepageState extends State<Popsiclepage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 🟢 1:1 REPLICA OF CAKEPAGE APP BAR
-  // ---------------------------------------------------------------------------
-  // 🟢 CRITICAL FIX: Removed "Positioned" from inside this widget
   Widget _buildElegantGlassAppBar(bool isMobile) {
-    // Mobile Sizing Constants (From Cake Page)
     final double barHeight = isMobile ? 60.0 : 70.0;
     final double iconSize = isMobile ? 36.0 : 40.0;
     final double horizontalPadding = isMobile ? 12.0 : 24.0;
@@ -878,7 +1233,7 @@ class _PopsiclepageState extends State<Popsiclepage> {
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                           spreadRadius: 2,
-                        )
+                        ),
                       ]
                     : [],
               ),
@@ -888,7 +1243,9 @@ class _PopsiclepageState extends State<Popsiclepage> {
                   filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Container(
                     height: barHeight,
-                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                    ),
                     decoration: BoxDecoration(
                       color: showShadow
                           ? Colors.black.withOpacity(0.2)
@@ -898,17 +1255,18 @@ class _PopsiclepageState extends State<Popsiclepage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // --- LEFT: CLICKABLE LOGO ---
-                        Expanded( 
-                          child: GestureDetector( 
+                        Expanded(
+                          child: GestureDetector(
                             onTap: () {
-                              // Navigate to Home
-                              Navigator.popUntil(context, (route) => route.isFirst);
+                              Navigator.popUntil(
+                                context,
+                                (route) => route.isFirst,
+                              );
                             },
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Flexible( 
+                                Flexible(
                                   child: Text(
                                     "BUTTER HEARTS CAKES",
                                     maxLines: 1,
@@ -926,14 +1284,13 @@ class _PopsiclepageState extends State<Popsiclepage> {
                           ),
                         ),
 
-                        // --- RIGHT: BUTTONS ---
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _buildGlassMenuDropdown(size: iconSize), 
-                            
+                            _buildGlassMenuDropdown(size: iconSize),
+
                             SizedBox(width: isMobile ? 8 : 10),
-                            
+
                             CartBadge(
                               onLoginSuccess: () {
                                 _activateCartListener();
@@ -954,8 +1311,7 @@ class _PopsiclepageState extends State<Popsiclepage> {
     );
   }
 
-  // --- MENU DROPDOWN (Matches Cake Page Style) ---
-  Widget _buildGlassMenuDropdown({double size = 40.0}) { 
+  Widget _buildGlassMenuDropdown({double size = 40.0}) {
     return Theme(
       data: Theme.of(context).copyWith(
         popupMenuTheme: PopupMenuThemeData(
@@ -970,7 +1326,7 @@ class _PopsiclepageState extends State<Popsiclepage> {
         offset: const Offset(0, 50),
         elevation: 20,
         tooltip: "Menu",
-        // The Trigger Button
+
         child: Container(
           width: size,
           height: size,
@@ -979,12 +1335,24 @@ class _PopsiclepageState extends State<Popsiclepage> {
             color: Colors.white.withOpacity(0.05),
             border: Border.all(color: Colors.white.withOpacity(0.15)),
           ),
-          child: Icon(Icons.grid_view_rounded, color: Colors.white, size: size * 0.5),
+          child: Icon(
+            Icons.grid_view_rounded,
+            color: Colors.white,
+            size: size * 0.5,
+          ),
         ),
-        // Menu Items
+
         onSelected: (value) {
-          if (value == 'cakes') Navigator.push(context, MaterialPageRoute(builder: (_) => const Cakepage()));
-          else if (value == 'cupcakes') Navigator.push(context, MaterialPageRoute(builder: (_) => const Cupcakepage()));
+          if (value == 'cakes')
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const Cakepage()),
+            );
+          else if (value == 'cupcakes')
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const Cupcakepage()),
+            );
         },
         itemBuilder: (context) => [
           PopupMenuItem(
@@ -993,7 +1361,7 @@ class _PopsiclepageState extends State<Popsiclepage> {
               children: [
                 const Icon(Icons.cake, color: Colors.white, size: 20),
                 const SizedBox(width: 12),
-                Text('Cakes', style: GoogleFonts.inter(color: Colors.white))
+                Text('Cakes', style: GoogleFonts.inter(color: Colors.white)),
               ],
             ),
           ),
@@ -1003,7 +1371,7 @@ class _PopsiclepageState extends State<Popsiclepage> {
               children: [
                 const Icon(Icons.cake, color: Colors.white, size: 20),
                 const SizedBox(width: 12),
-                Text('Cupcakes', style: GoogleFonts.inter(color: Colors.white))
+                Text('Cupcakes', style: GoogleFonts.inter(color: Colors.white)),
               ],
             ),
           ),
@@ -1013,9 +1381,6 @@ class _PopsiclepageState extends State<Popsiclepage> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 🟢 PERFECTED CART BADGE WIDGET (Copied exactly from Cake Page)
-// ---------------------------------------------------------------------------
 class CartBadge extends StatefulWidget {
   final VoidCallback onLoginSuccess;
 
@@ -1033,7 +1398,7 @@ class _CartBadgeState extends State<CartBadge> {
   bool get isLoggedIn => FirebaseAuth.instance.currentUser != null;
 
   void _startAutoCloseTimer() {
-    _autoCloseTimer?.cancel(); 
+    _autoCloseTimer?.cancel();
     _autoCloseTimer = Timer(const Duration(seconds: 5), () {
       if (mounted && _isLoginPromptOpen) {
         setState(() {
@@ -1045,28 +1410,31 @@ class _CartBadgeState extends State<CartBadge> {
 
   @override
   void dispose() {
-    _autoCloseTimer?.cancel(); 
+    _autoCloseTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    double targetWidth = (!isLoggedIn && _isLoginPromptOpen) 
-        ? 130.0 
+    double targetWidth = (!isLoggedIn && _isLoginPromptOpen)
+        ? 130.0
         : (cartList.isNotEmpty && isLoggedIn ? 75.0 : 52.0);
 
     return GestureDetector(
       onTap: () async {
         if (isLoggedIn) {
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => const Cartpage1()));
-          setState(() {}); 
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const Cartpage1()),
+          );
+          setState(() {});
         } else {
           setState(() {
             _isLoginPromptOpen = !_isLoginPromptOpen;
-          }); 
-          
+          });
+
           if (_isLoginPromptOpen) {
-            _startAutoCloseTimer(); 
+            _startAutoCloseTimer();
           }
         }
       },
@@ -1080,7 +1448,7 @@ class _CartBadgeState extends State<CartBadge> {
               color: _accentPink.withOpacity(0.4),
               blurRadius: 15,
               offset: const Offset(0, 5),
-            )
+            ),
           ],
         ),
         child: AnimatedContainer(
@@ -1095,12 +1463,16 @@ class _CartBadgeState extends State<CartBadge> {
           ),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(), 
+            physics: const NeverScrollableScrollPhysics(),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 20),
+                const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: Colors.white,
+                  size: 20,
+                ),
 
                 if (isLoggedIn && cartList.isNotEmpty) ...[
                   const SizedBox(width: 8),
@@ -1121,9 +1493,12 @@ class _CartBadgeState extends State<CartBadge> {
                     opacity: _isLoginPromptOpen ? 1.0 : 0.0,
                     child: GestureDetector(
                       onTap: () async {
-                        _autoCloseTimer?.cancel(); 
-                        await Navigator.push(context, MaterialPageRoute(builder: (context)=> Loginpage2()));
-                        if(mounted) setState(() => _isLoginPromptOpen = false);
+                        _autoCloseTimer?.cancel();
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => Loginpage2()),
+                        );
+                        if (mounted) setState(() => _isLoginPromptOpen = false);
                         widget.onLoginSuccess();
                       },
                       child: Text(
@@ -1137,7 +1512,7 @@ class _CartBadgeState extends State<CartBadge> {
                       ),
                     ),
                   ),
-                ]
+                ],
               ],
             ),
           ),

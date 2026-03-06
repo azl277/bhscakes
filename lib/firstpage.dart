@@ -16,23 +16,20 @@ class Firstpage extends StatefulWidget {
 
 class _FirstpageState extends State<Firstpage> {
   late VideoPlayerController _controller;
-  Timer? _navigationTimer; // 🟢 Reference to cancel timer if needed
+  Timer? _navigationTimer;
 
   @override
   void initState() {
     super.initState();
     _controller = VideoPlayerController.asset("assets/background.mp4")
       ..initialize().then((_) {
-        // Ensure UI updates once video is loaded
-        setState(() {}); 
-        
-        // 🟢 WEB FIX: Mute required for autoplay on many browsers
-        _controller.setVolume(0); 
+        setState(() {});
+
+        _controller.setVolume(0);
         _controller.setLooping(true);
         _controller.play();
       });
 
-    // 🟢 SAFE NAVIGATION: Store timer to cancel in dispose()
     _navigationTimer = Timer(const Duration(seconds: 7), () {
       if (mounted) {
         Navigator.pushReplacement(
@@ -46,24 +43,22 @@ class _FirstpageState extends State<Firstpage> {
   @override
   void dispose() {
     _controller.dispose();
-    _navigationTimer?.cancel(); // 🟢 Prevent navigation if widget is destroyed
+    _navigationTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🟢 RESPONSIVE VARIABLES
     final size = MediaQuery.of(context).size;
     final bool isMobile = size.width < 800;
 
-    final double logoSize = isMobile ? 180 : 250; // Larger logo on Web
-    final double fontSize = isMobile ? 24 : 32;   // Larger text on Web
+    final double logoSize = isMobile ? 180 : 250;
+    final double fontSize = isMobile ? 24 : 32;
 
     return Scaffold(
-      backgroundColor: Colors.black, // Fallback color
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. BACKGROUND VIDEO
           SizedBox.expand(
             child: _controller.value.isInitialized
                 ? FittedBox(
@@ -77,30 +72,26 @@ class _FirstpageState extends State<Firstpage> {
                 : Container(color: Colors.black),
           ),
 
-          // 2. DARK OVERLAY (Readability)
           Container(color: Colors.black.withOpacity(0.3)),
 
-          // 3. CENTERED CONTENT
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 🟢 RESPONSIVE LOGO
                 Image.asset(
-                  'assets/bhslogo.png', // Ensure "assets/" prefix if usually required
+                  'assets/bhslogo.png',
                   width: logoSize,
                   fit: BoxFit.contain,
                 ),
 
                 const SizedBox(height: 20),
 
-                // 🟢 RESPONSIVE ANIMATED TEXT
                 AnimatedTextKit(
                   animatedTexts: [
                     TypewriterAnimatedText(
                       'we bake the best',
                       textStyle: GoogleFonts.indieFlower(
-                        fontSize: fontSize, // Responsive Size
+                        fontSize: fontSize,
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         shadows: [
@@ -111,7 +102,7 @@ class _FirstpageState extends State<Firstpage> {
                           ),
                         ],
                       ),
-                      speed: const Duration(milliseconds: 150), // Slightly faster typing
+                      speed: const Duration(milliseconds: 150),
                     ),
                   ],
                   totalRepeatCount: 1,

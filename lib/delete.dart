@@ -18,11 +18,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
   final TextEditingController _confirmController = TextEditingController();
   final String _confirmationKeyword = "DELETE";
 
-  // ---------------------------------------------------------------------------
-  // 🔴 CORE DELETE LOGIC (This is the function you were looking for)
-  // ---------------------------------------------------------------------------
   Future<void> _deleteAccount() async {
-    // 1. Input Validation
     if (_confirmController.text.trim() != _confirmationKeyword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -45,69 +41,61 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
 
       final String uid = user.uid;
 
-      // 🟢 2. DELETE ORDERS FROM CLOUD FIRESTORE
-      // We query all orders belonging to this user
       final QuerySnapshot orderSnapshots = await FirebaseFirestore.instance
           .collection('orders')
           .where('userId', isEqualTo: uid)
           .get();
 
-      // Use Batch Write for efficiency
       WriteBatch batch = FirebaseFirestore.instance.batch();
       for (var doc in orderSnapshots.docs) {
         batch.delete(doc.reference);
       }
-      await batch.commit(); 
+      await batch.commit();
 
-      // 🟢 3. DELETE ORDERS FROM REALTIME DATABASE
-      // Query RTDB orders where userId matches
-      final DatabaseReference rtdbOrdersRef = FirebaseDatabase.instance.ref().child('orders');
-      final DataSnapshot rtdbSnap = await rtdbOrdersRef.orderByChild('userId').equalTo(uid).get();
+      final DatabaseReference rtdbOrdersRef = FirebaseDatabase.instance
+          .ref()
+          .child('orders');
+      final DataSnapshot rtdbSnap = await rtdbOrdersRef
+          .orderByChild('userId')
+          .equalTo(uid)
+          .get();
 
       if (rtdbSnap.exists) {
-        // Loop through the results and delete them one by one
         Map<dynamic, dynamic> values = rtdbSnap.value as Map<dynamic, dynamic>;
         for (var key in values.keys) {
           await rtdbOrdersRef.child(key).remove();
         }
       }
 
-      // 🟢 4. DELETE USER PROFILES & WISHLIST
-      // Realtime Database Profile
       await FirebaseDatabase.instance.ref().child('users').child(uid).remove();
-      
-      // Cloud Firestore Profile
+
       await FirebaseFirestore.instance.collection('users').doc(uid).delete();
-      
-      // Delete Wishlist
+
       final wishlistSnap = await FirebaseFirestore.instance
           .collection('wishlist')
           .where('userEmail', isEqualTo: user.email)
           .get();
-      
+
       WriteBatch wishlistBatch = FirebaseFirestore.instance.batch();
       for (var doc in wishlistSnap.docs) {
         wishlistBatch.delete(doc.reference);
       }
       await wishlistBatch.commit();
 
-      // 5. DELETE AUTH ACCOUNT
       await user.delete();
 
-      // 6. CLEANUP LOCAL STORAGE
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
-      // 7. SUCCESS
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Account and all data deleted successfully."))
+          const SnackBar(
+            content: Text("Account and all data deleted successfully."),
+          ),
         );
         _navigateToLogin();
       }
-
     } on FirebaseAuthException catch (e) {
-      // 🔴 SECURITY CHECK: User needs to re-login
       if (e.code == 'requires-recent-login') {
         if (mounted) _showReauthDialog();
       } else {
@@ -139,28 +127,30 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("Security Verification"),
-        content: const Text("For your security, deleting an account requires a recent login. Please log out and log in again to verify your identity."),
+        content: const Text(
+          "For your security, deleting an account requires a recent login. Please log out and log in again to verify your identity.",
+        ),
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               if (mounted) _navigateToLogin();
-            }, 
-            child: const Text("Logout & Verify", style: TextStyle(color: Colors.white))
-          )
+            },
+            child: const Text(
+              "Logout & Verify",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 🎨 UI BUILD
-  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F5), // Very light red tint
+      backgroundColor: const Color(0xFFFFF5F5),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -174,18 +164,20 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Warning Icon
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.red.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 48,
+              ),
             ),
             const SizedBox(height: 24),
 
-            // Title
             Text(
               "Are you sure?",
               style: GoogleFonts.fahkwang(
@@ -207,12 +199,15 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
 
             const SizedBox(height: 40),
 
-            // Confirmation Input
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 "Type \"$_confirmationKeyword\" to confirm:",
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black54,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -235,7 +230,6 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
 
             const SizedBox(height: 30),
 
-            // Delete Button
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -244,21 +238,42 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   disabledBackgroundColor: Colors.red.withOpacity(0.3),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   elevation: 0,
                 ),
-                child: _isLoading 
-                  ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text("Permanently Delete Account", style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        "Permanently Delete Account",
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 15,
+                        ),
+                      ),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // Cancel Button
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("Nevermind, keep my account", style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.w600)),
+              child: Text(
+                "Nevermind, keep my account",
+                style: GoogleFonts.inter(
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),

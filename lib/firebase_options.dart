@@ -1,4 +1,3 @@
-
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -39,7 +38,7 @@ class DefaultFirebaseOptions {
     authDomain: 'bhscakes-c6d32.firebaseapp.com',
     storageBucket: 'bhscakes-c6d32.firebasestorage.app',
     measurementId: 'G-ZZX8MCGGC0',
-    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/"
+    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/",
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -48,7 +47,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '548513843938',
     projectId: 'bhscakes-c6d32',
     storageBucket: 'bhscakes-c6d32.firebasestorage.app',
-     databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/"
+    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/",
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -58,10 +57,8 @@ class DefaultFirebaseOptions {
     projectId: 'bhscakes-c6d32',
     storageBucket: 'bhscakes-c6d32.firebasestorage.app',
     iosBundleId: 'com.example.project',
-      databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/"
+    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/",
   );
-
-  
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyCVy25NYU-iOCFK9UyHtchCgdtOo2dY1jk',
@@ -70,7 +67,7 @@ class DefaultFirebaseOptions {
     projectId: 'bhscakes-c6d32',
     storageBucket: 'bhscakes-c6d32.firebasestorage.app',
     iosBundleId: 'com.example.project',
-    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/"
+    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/",
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
@@ -81,6 +78,6 @@ class DefaultFirebaseOptions {
     authDomain: 'bhscakes-c6d32.firebaseapp.com',
     storageBucket: 'bhscakes-c6d32.firebasestorage.app',
     measurementId: 'G-J02C3PC16M',
-    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/"
+    databaseURL: "https://bhscakes-app-default-rtdb.firebaseio.com/",
   );
 }

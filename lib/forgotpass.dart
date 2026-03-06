@@ -17,9 +17,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   bool _isLoading = false;
 
   void _showMessage(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   bool _isValidEmail(String email) {
@@ -41,7 +39,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
       _showMessage("Password reset link sent!");
 
-      // ⏳ wait so user can read message
       await Future.delayed(const Duration(seconds: 2));
 
       if (mounted) Navigator.pop(context);
@@ -108,8 +105,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       decoration: const InputDecoration(
                         labelText: "Email Address",
                         labelStyle: TextStyle(color: Colors.white70),
-                        prefixIcon:
-                            Icon(Icons.email, color: Colors.white70),
+                        prefixIcon: Icon(Icons.email, color: Colors.white70),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: Colors.white30),
                         ),
@@ -125,8 +121,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             width: double.infinity,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Colors.white.withOpacity(0.2),
+                                backgroundColor: Colors.white.withOpacity(0.2),
                                 shape: const StadiumBorder(),
                               ),
                               onPressed: _resetPassword,

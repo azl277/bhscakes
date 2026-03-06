@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// --- 🎨 REFINED LUXURY PALETTE ---
 const Color kPrimary = Color(0xFFAC5D76);
 const Color kPrimaryLight = Color(0xFFFDEEF2);
 const Color kBackground = Color(0xFFF9F9F7);
@@ -34,7 +33,6 @@ class Customisepage extends StatefulWidget {
 }
 
 class _CustomisepageState extends State<Customisepage> {
-  // --- STATE ---
   int layers = 3;
   String selectedShape = 'Round';
   Color selectedFrostingColor = const Color(0xFFFFFDD0);
@@ -43,14 +41,12 @@ class _CustomisepageState extends State<Customisepage> {
   String wishText = "";
   Offset wishTextPosition = Offset.zero;
 
-  // Logic Helpers
   bool isDragging = false;
   bool isOverDelete = false;
 
   final TextEditingController _wishController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
-  // --- DATA ---
   final List<Map<String, dynamic>> shapes = [
     {'name': 'Round', 'icon': Icons.circle_outlined},
     {'name': 'Square', 'icon': Icons.crop_square},
@@ -66,7 +62,11 @@ class _CustomisepageState extends State<Customisepage> {
   ];
 
   final List<String> flavorKeys = [
-    'Vanilla Bean', 'Belgian Choco', 'Strawberry', 'Red Velvet', 'Blueberry'
+    'Vanilla Bean',
+    'Belgian Choco',
+    'Strawberry',
+    'Red Velvet',
+    'Blueberry',
   ];
   late List<String> selectedFlavors;
 
@@ -84,16 +84,17 @@ class _CustomisepageState extends State<Customisepage> {
     selectedFlavors = List.generate(10, (_) => 'Vanilla Bean');
   }
 
-  // --- CORE LOGIC ---
   void addTopping(String name, String path) {
     setState(() {
       showTopView = true;
-      placedToppings.add(DraggableItem(
-        id: DateTime.now().toString(),
-        name: name,
-        imagePath: path,
-        position: Offset.zero,
-      ));
+      placedToppings.add(
+        DraggableItem(
+          id: DateTime.now().toString(),
+          name: name,
+          imagePath: path,
+          position: Offset.zero,
+        ),
+      );
     });
   }
 
@@ -105,40 +106,40 @@ class _CustomisepageState extends State<Customisepage> {
     return Scaffold(
       backgroundColor: kBackground,
       appBar: _buildAppBar(),
-      body: LayoutBuilder(builder: (context, constraints) {
-        return SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: isTablet ? screenWidth * 0.1 : 20,
-            vertical: 10,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildVisualizerContainer(constraints),
-              const SizedBox(height: 30),
-              _buildSectionTitle("CHOOSE BASE SHAPE"),
-              _buildShapeSelector(),
-              const SizedBox(height: 30),
-              _buildLayerAndColorSection(),
-              const SizedBox(height: 30),
-              _buildSectionTitle("CUSTOM INSCRIPTION"),
-              _buildWishInput(),
-              const SizedBox(height: 30),
-              _buildSectionTitle("TOPPINGS (DRAG TO ARRANGE)"),
-              _buildToppingInventory(),
-              const SizedBox(height: 30),
-              _buildSectionTitle("FLAVOR PER LAYER"),
-              _buildFlavorConfigurator(),
-              const SizedBox(height: 120),
-            ],
-          ),
-        );
-      }),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? screenWidth * 0.1 : 20,
+              vertical: 10,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildVisualizerContainer(constraints),
+                const SizedBox(height: 30),
+                _buildSectionTitle("CHOOSE BASE SHAPE"),
+                _buildShapeSelector(),
+                const SizedBox(height: 30),
+                _buildLayerAndColorSection(),
+                const SizedBox(height: 30),
+                _buildSectionTitle("CUSTOM INSCRIPTION"),
+                _buildWishInput(),
+                const SizedBox(height: 30),
+                _buildSectionTitle("TOPPINGS (DRAG TO ARRANGE)"),
+                _buildToppingInventory(),
+                const SizedBox(height: 30),
+                _buildSectionTitle("FLAVOR PER LAYER"),
+                _buildFlavorConfigurator(),
+                const SizedBox(height: 120),
+              ],
+            ),
+          );
+        },
+      ),
       bottomSheet: _buildPricingBottomBar(),
     );
   }
-
-  // --- UI COMPONENTS ---
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
@@ -174,28 +175,20 @@ class _CustomisepageState extends State<Customisepage> {
             color: kPrimary.withOpacity(0.06),
             blurRadius: 30,
             offset: const Offset(0, 15),
-          )
+          ),
         ],
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // RepaintBoundary improves drag performance
           RepaintBoundary(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 400),
               child: showTopView ? _buildTopView() : _buildSideView(),
             ),
           ),
-          Positioned(
-            bottom: 20,
-            child: _buildViewToggle(),
-          ),
-          if (isDragging)
-            Positioned(
-              top: 20,
-              child: _buildDeleteZone(),
-            ),
+          Positioned(bottom: 20, child: _buildViewToggle()),
+          if (isDragging) Positioned(top: 20, child: _buildDeleteZone()),
         ],
       ),
     );
@@ -218,7 +211,7 @@ class _CustomisepageState extends State<Customisepage> {
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
                 offset: const Offset(0, 4),
-              )
+              ),
             ],
             gradient: LinearGradient(
               colors: [
@@ -240,7 +233,7 @@ class _CustomisepageState extends State<Customisepage> {
       alignment: Alignment.center,
       children: [
         _buildCakeShapeBase(size),
-        // Wish Text Layer
+
         if (wishText.isNotEmpty)
           Positioned(
             left: (size / 2) + wishTextPosition.dx - 60,
@@ -269,24 +262,26 @@ class _CustomisepageState extends State<Customisepage> {
               ),
             ),
           ),
-        // Toppings Layer
-        ...placedToppings.map((item) => Positioned(
-              left: (size / 2) + item.position.dx - 20,
-              top: (size / 2) + item.position.dy - 20,
-              child: GestureDetector(
-                onPanUpdate: (d) => setState(() {
-                  item.position += d.delta;
-                  isDragging = true;
-                  isOverDelete = item.position.dy < -100;
-                }),
-                onPanEnd: (_) => setState(() {
-                  if (isOverDelete) placedToppings.remove(item);
-                  isDragging = false;
-                  isOverDelete = false;
-                }),
-                child: Image.asset(item.imagePath, width: 40, height: 40),
-              ),
-            )),
+
+        ...placedToppings.map(
+          (item) => Positioned(
+            left: (size / 2) + item.position.dx - 20,
+            top: (size / 2) + item.position.dy - 20,
+            child: GestureDetector(
+              onPanUpdate: (d) => setState(() {
+                item.position += d.delta;
+                isDragging = true;
+                isOverDelete = item.position.dy < -100;
+              }),
+              onPanEnd: (_) => setState(() {
+                if (isOverDelete) placedToppings.remove(item);
+                isDragging = false;
+                isOverDelete = false;
+              }),
+              child: Image.asset(item.imagePath, width: 40, height: 40),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -295,7 +290,11 @@ class _CustomisepageState extends State<Customisepage> {
     if (selectedShape == 'Heart') {
       return ClipPath(
         clipper: ImprovedHeartClipper(),
-        child: Container(width: size, height: size, color: selectedFrostingColor),
+        child: Container(
+          width: size,
+          height: size,
+          color: selectedFrostingColor,
+        ),
       );
     }
     return Container(
@@ -304,7 +303,9 @@ class _CustomisepageState extends State<Customisepage> {
       decoration: BoxDecoration(
         color: selectedFrostingColor,
         shape: selectedShape == 'Round' ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: selectedShape == 'Square' ? BorderRadius.circular(20) : null,
+        borderRadius: selectedShape == 'Square'
+            ? BorderRadius.circular(20)
+            : null,
       ),
     );
   }
@@ -322,11 +323,16 @@ class _CustomisepageState extends State<Customisepage> {
               decoration: BoxDecoration(
                 color: isSelected ? kTextDark : kSurface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isSelected ? kTextDark : Colors.grey.shade200),
+                border: Border.all(
+                  color: isSelected ? kTextDark : Colors.grey.shade200,
+                ),
               ),
               child: Column(
                 children: [
-                  Icon(s['icon'], color: isSelected ? Colors.white : kTextLight),
+                  Icon(
+                    s['icon'],
+                    color: isSelected ? Colors.white : kTextLight,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     s['name'],
@@ -364,12 +370,23 @@ class _CustomisepageState extends State<Customisepage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _qtyBtn(Icons.remove, () => setState(() => layers = layers > 1 ? layers - 1 : 1)),
-                    Text("$layers", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    _qtyBtn(Icons.add, () => setState(() => layers = layers < 8 ? layers + 1 : 8)),
+                    _qtyBtn(
+                      Icons.remove,
+                      () =>
+                          setState(() => layers = layers > 1 ? layers - 1 : 1),
+                    ),
+                    Text(
+                      "$layers",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    _qtyBtn(
+                      Icons.add,
+                      () =>
+                          setState(() => layers = layers < 8 ? layers + 1 : 8),
+                    ),
                   ],
                 ),
-              )
+              ),
             ],
           ),
         ),
@@ -387,7 +404,8 @@ class _CustomisepageState extends State<Customisepage> {
                   children: frostingColors.map((c) {
                     bool isSelected = selectedFrostingColor == c['color'];
                     return GestureDetector(
-                      onTap: () => setState(() => selectedFrostingColor = c['color']),
+                      onTap: () =>
+                          setState(() => selectedFrostingColor = c['color']),
                       child: Container(
                         width: 40,
                         margin: const EdgeInsets.only(right: 10),
@@ -403,10 +421,10 @@ class _CustomisepageState extends State<Customisepage> {
                     );
                   }).toList(),
                 ),
-              )
+              ),
             ],
           ),
-        )
+        ),
       ],
     );
   }
@@ -419,7 +437,8 @@ class _CustomisepageState extends State<Customisepage> {
         itemCount: toppingsList.length,
         itemBuilder: (context, i) {
           return GestureDetector(
-            onTap: () => addTopping(toppingsList[i]['name']!, toppingsList[i]['path']!),
+            onTap: () =>
+                addTopping(toppingsList[i]['name']!, toppingsList[i]['path']!),
             child: Container(
               width: 80,
               margin: const EdgeInsets.only(right: 12),
@@ -427,7 +446,9 @@ class _CustomisepageState extends State<Customisepage> {
                 color: kSurface,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Center(child: Image.asset(toppingsList[i]['path']!, width: 40)),
+              child: Center(
+                child: Image.asset(toppingsList[i]['path']!, width: 40),
+              ),
             ),
           );
         },
@@ -449,7 +470,9 @@ class _CustomisepageState extends State<Customisepage> {
             child: DropdownButton<String>(
               value: selectedFlavors[index],
               isExpanded: true,
-              items: flavorKeys.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+              items: flavorKeys
+                  .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                  .toList(),
               onChanged: (v) => setState(() => selectedFlavors[index] = v!),
             ),
           ),
@@ -473,8 +496,17 @@ class _CustomisepageState extends State<Customisepage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("ESTIMATED PRICE", style: TextStyle(fontSize: 10, color: kTextLight)),
-                Text("₹$total", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text(
+                  "ESTIMATED PRICE",
+                  style: TextStyle(fontSize: 10, color: kTextLight),
+                ),
+                Text(
+                  "₹$total",
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
             const Spacer(),
@@ -482,61 +514,85 @@ class _CustomisepageState extends State<Customisepage> {
               onPressed: () {},
               style: ElevatedButton.styleFrom(
                 backgroundColor: kTextDark,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40,
+                  vertical: 15,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: const Text("PROCEED", style: TextStyle(color: Colors.white)),
-            )
+              child: const Text(
+                "PROCEED",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // --- HELPERS ---
   Widget _buildSectionTitle(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1, color: kTextLight)),
-      );
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      t,
+      style: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1,
+        color: kTextLight,
+      ),
+    ),
+  );
 
   Widget _qtyBtn(IconData i, VoidCallback t) => IconButton(
-        onPressed: t,
-        icon: Icon(i, size: 16),
-        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        padding: EdgeInsets.zero,
-      );
+    onPressed: t,
+    icon: Icon(i, size: 16),
+    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+    padding: EdgeInsets.zero,
+  );
 
   Widget _buildViewToggle() => Container(
-        decoration: BoxDecoration(color: kBackground, borderRadius: BorderRadius.circular(30)),
-        child: Row(
-          children: [
-            _toggleItem("Side", !showTopView),
-            _toggleItem("Top", showTopView),
-          ],
-        ),
-      );
+    decoration: BoxDecoration(
+      color: kBackground,
+      borderRadius: BorderRadius.circular(30),
+    ),
+    child: Row(
+      children: [
+        _toggleItem("Side", !showTopView),
+        _toggleItem("Top", showTopView),
+      ],
+    ),
+  );
 
   Widget _toggleItem(String l, bool a) => GestureDetector(
-        onTap: () => setState(() => showTopView = l == "Top"),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          decoration: BoxDecoration(
-            color: a ? kTextDark : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Text(l, style: TextStyle(color: a ? Colors.white : kTextLight, fontSize: 12)),
-        ),
-      );
+    onTap: () => setState(() => showTopView = l == "Top"),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(
+        color: a ? kTextDark : Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Text(
+        l,
+        style: TextStyle(color: a ? Colors.white : kTextLight, fontSize: 12),
+      ),
+    ),
+  );
 
   Widget _buildDeleteZone() => AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isOverDelete ? kError : kError.withOpacity(0.2),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(Icons.delete_outline, color: isOverDelete ? Colors.white : kError),
-      );
+    duration: const Duration(milliseconds: 200),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: isOverDelete ? kError : kError.withOpacity(0.2),
+      shape: BoxShape.circle,
+    ),
+    child: Icon(
+      Icons.delete_outline,
+      color: isOverDelete ? Colors.white : kError,
+    ),
+  );
 
   Widget _buildWishInput() {
     return TextField(
@@ -549,22 +605,39 @@ class _CustomisepageState extends State<Customisepage> {
         hintText: "Enter name or message...",
         filled: true,
         fillColor: kSurface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }
 }
 
-// 🟢 CUSTOM CLIPPER FOR PERFECT HEART
 class ImprovedHeartClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();
     path.moveTo(size.width / 2, size.height * 0.35);
-    path.cubicTo(0, size.height * 0.1, 0, size.height * 0.8, size.width / 2, size.height);
-    path.cubicTo(size.width, size.height * 0.8, size.width, size.height * 0.1, size.width / 2, size.height * 0.35);
+    path.cubicTo(
+      0,
+      size.height * 0.1,
+      0,
+      size.height * 0.8,
+      size.width / 2,
+      size.height,
+    );
+    path.cubicTo(
+      size.width,
+      size.height * 0.8,
+      size.width,
+      size.height * 0.1,
+      size.width / 2,
+      size.height * 0.35,
+    );
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
