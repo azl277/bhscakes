@@ -31,7 +31,7 @@ class _SignupPageState extends State<SignupPage> {
         UserCredential userCredential = await _auth
             .createUserWithEmailAndPassword(email: email, password: password);
 
-        await userCredential.user!.sendEmailVerification();
+        await userCredential.user?.sendEmailVerification();
 
         setState(() {
           _isWaitingForVerification = true;

@@ -295,7 +295,7 @@ class _Loginpage2State extends State<Loginpage2> {
                               inputType: TextInputType.phone,
                               action: TextInputAction.done,
                               autofill: [AutofillHints.telephoneNumber],
-                              validator: (val) => (val!.length < 10)
+                              validator: (val) => (val == null || val.length < 10)
                                   ? "Enter valid number"
                                   : null,
                             ),

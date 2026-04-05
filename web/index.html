@@ -1,71 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base href="$FLUTTER_BASE_HREF" />
+  <base href="$FLUTTER_BASE_HREF">
 
-  <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-  <meta name="description" content="Butter Hearts Cakes - Baked with Love" />
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
 
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-web-app-status-bar-style" content="black" />
-  <meta name="apple-web-app-title" content="Butter Hearts Cakes" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="project">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <link rel="apple-touch-icon" href="icons/Icon-192.png" />
-  <link rel="icon" type="image/png" href="favicon.png" />
-  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Butter Hearts Cakes</title>
+  <title>project</title>
+  <link rel="manifest" href="manifest.json">
 
-  <!-- Google Maps -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCRV42BDn5vJZByzdrTQE2F-1CWNjiwAJs"></script>
-
-  <!-- Razorpay -->
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-
-  <!-- Razorpay Web Function -->
-  <script>
-    function openRazorpay(amount, orderId, key) {
-      var options = {
-        key: key,
-        amount: amount,
-        currency: "INR",
-        order_id: orderId,
-        name: "Butter Hearts Cakes",
-        description: "Secure Payment",
-        handler: function (response) {
-          console.log("PAYMENT SUCCESS", response.razorpay_payment_id);
-        },
-        modal: {
-          ondismiss: function () {
-            console.log("PAYMENT CANCELLED");
-          }
-        }
-      };
-
-      var rzp = new Razorpay(options);
-      rzp.open();
-    }
-  </script>
+  <script src="flutter.js" defer></script>
 </head>
-
 <body>
-  <div id="recaptcha-container"></div>
-
   <script>
-    if (window.firebase && firebase.auth) {
-      window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(
-        'recaptcha-container',
-        { size: 'invisible' }
-      );
-    }
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: "$SERVICE_WORKER_VERSION",
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          // Initialize the engine with the HTML renderer
+          engineInitializer.initializeEngine({
+            renderer: "html", 
+          }).then(function(appRunner) {
+            // Run the app
+            appRunner.runApp();
+          });
+        }
+      });
+    });
   </script>
-
-  <!-- Flutter -->
-  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "bhscakes-app"
-  }
+  },
+  "targets": {
+    "bhscakes-app": {
+      "hosting": {
+        "user": [
+          "bhscakes-user"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

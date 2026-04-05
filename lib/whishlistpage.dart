@@ -77,11 +77,11 @@ class WishlistPage extends StatelessWidget {
             );
           }
 
-          if (!snapshot.hasData || !snapshot.data!.snapshot.exists) {
+          if (!snapshot.hasData || snapshot.data?.snapshot.exists != true) {
             return _buildEmptyState();
           }
 
-          final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+          final data = (snapshot.data?.snapshot.value as Map<dynamic, dynamic>?) ?? {};
           final List<Map<String, dynamic>> wishlistItems = [];
 
           data.forEach((key, value) {
@@ -120,11 +120,11 @@ class WishlistPage extends StatelessWidget {
     return StreamBuilder<DatabaseEvent>(
       stream: FirebaseDatabase.instance.ref().child('users/$uid/cart').onValue,
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.snapshot.exists) {
+        if (!snapshot.hasData || snapshot.data?.snapshot.exists != true) {
           return const SizedBox.shrink();
         }
 
-        final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+        final data = (snapshot.data?.snapshot.value as Map<dynamic, dynamic>?) ?? {};
         int cartCount = data.length;
 
         if (cartCount == 0) return const SizedBox.shrink();
@@ -432,11 +432,11 @@ class WishlistPage extends StatelessWidget {
             query.docs.first.reference.parent.id == 'cupcakes';
 
         stringItem['category'] =
-            data['category']?.toString() ?? stringItem['category']!;
+            data['category']?.toString() ?? stringItem['category'] ?? "";
         stringItem['desc'] =
             data['desc']?.toString() ??
             data['description']?.toString() ??
-            stringItem['desc']!;
+            stringItem['desc'] ?? "";
         stringItem['isOffer'] = (data['isOffer'] ?? false).toString();
         stringItem['offerPrice'] = data['offerPrice']?.toString() ?? '';
 
@@ -453,8 +453,8 @@ class WishlistPage extends StatelessWidget {
 
       if (!context.mounted) return;
 
-      String checkName = stringItem['name']!.toLowerCase();
-      String checkCat = stringItem['category']!.toLowerCase().replaceAll(
+      String checkName = stringItem['name'] ?? "".toLowerCase();
+      String checkCat = stringItem['category'] ?? "".toLowerCase().replaceAll(
         ' ',
         '',
       );
@@ -490,8 +490,7 @@ class WishlistPage extends StatelessWidget {
     String selectedPack = packSizes.first;
 
     int basePrice =
-        int.tryParse(item['price']!.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-
+       int.tryParse(item['price']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '0') ?? 0;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -721,8 +720,8 @@ class WishlistPage extends StatelessWidget {
     String activePriceString =
         (isOffer &&
             item['offerPrice'] != null &&
-            item['offerPrice']!.isNotEmpty)
-        ? item['offerPrice']!
+            (item['offerPrice'] ?? "").isNotEmpty)
+        ? item['offerPrice'] ?? ""
         : item['price'] ?? '0';
 
     int basePrice =
@@ -751,7 +750,7 @@ class WishlistPage extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         child: Hero(
           tag: "${item['name']}_modal_${item['id']}",
-          child: _buildImage(item['image']!),
+          child: _buildImage(item['image'] ?? ""),
         ),
       ),
     );
@@ -844,7 +843,7 @@ class WishlistPage extends StatelessWidget {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        item['name']!,
+                                        item['name'] ?? "",
                                         style: GoogleFonts.playfairDisplay(
                                           fontSize: 24,
                                           fontWeight: FontWeight.bold,
@@ -927,7 +926,7 @@ class WishlistPage extends StatelessWidget {
                             const SizedBox(height: 25),
 
                             if (item['desc'] != null &&
-                                item['desc']!.isNotEmpty) ...[
+                                (item['desc'] ?? "").isNotEmpty) ...[
                               Text(
                                 "DESCRIPTION",
                                 style: GoogleFonts.inter(
@@ -939,7 +938,7 @@ class WishlistPage extends StatelessWidget {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                item['desc']!,
+                                item['desc'] ?? "",
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   height: 1.5,
@@ -1297,8 +1296,7 @@ class WishlistPage extends StatelessWidget {
   ) {
     int quantity = 1;
     int basePrice =
-        int.tryParse(item['price']!.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-
+       int.tryParse(item['price']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '0') ?? 0;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,

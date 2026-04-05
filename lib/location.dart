@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +9,22 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+class DeliveryZone {
+  final String id;
+  final String name;
+  final List<LatLng> polygon;
+  final double freeRadiusKm;
+  final double chargePerKm;
+
+  DeliveryZone({
+    required this.id,
+    required this.name,
+    required this.polygon,
+    required this.freeRadiusKm,
+    required this.chargePerKm,
+  });
+}
+
 class LocationPage extends StatefulWidget {
   const LocationPage({super.key});
 
@@ -16,19 +32,23 @@ class LocationPage extends StatefulWidget {
   State<LocationPage> createState() => _LocationPickerState();
 }
 
-class _LocationPickerState extends State<LocationPage>
-    with TickerProviderStateMixin {
+class _LocationPickerState extends State<LocationPage> with TickerProviderStateMixin {
   final Completer<GoogleMapController> _controller = Completer();
 
   LatLng _shopLocation = const LatLng(9.9312, 76.2673);
-  double _deliveryRadius = 15000;
+  List<DeliveryZone> _deliveryZones = [];
+  Set<Polygon> _mapPolygons = {};
 
   LatLng _currentCameraPosition = const LatLng(9.9312, 76.2673);
   double _currentZoom = 14.0;
-  bool _isServiceable = true;
   bool _isLoading = true;
   bool _isMapMoving = false;
   String _detectedAddress = "Locating...";
+
+  bool _isServiceable = false;
+  bool _isInvalidArea = false; // NEW: Detects water or invalid terrain
+  DeliveryZone? _activeZone;
+  double _calculatedDeliveryFee = 0.0;
 
   bool _isPinningMode = true;
   String _selectedLabel = "Home";
@@ -40,6 +60,7 @@ class _LocationPickerState extends State<LocationPage>
   final TextEditingController _nameController = TextEditingController();
 
   final Color _accentPink = const Color(0xFFFF2E74);
+  final Color _zoneColor = const Color(0xFF3B82F6);
 
   final String _lightMapStyle = '''
   [
@@ -82,51 +103,64 @@ class _LocationPickerState extends State<LocationPage>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userPhone = user.phoneNumber ?? "";
-
-      String userName = "";
-      if (user.displayName != null && user.displayName!.isNotEmpty) {
-        userName = user.displayName!;
-      } else if (user.email != null && user.email!.isNotEmpty) {
-        userName = user.email!.split('@')[0];
-      }
-
-      String enteredPhone = _phoneController.text.replaceAll(
-        RegExp(r'[^0-9+]'),
-        '',
-      );
+      String userName = user.displayName ?? (user.email?.split('@')[0] ?? "");
+      String enteredPhone = _phoneController.text.replaceAll(RegExp(r'[^0-9+]'), '');
       String registeredPhone = userPhone.replaceAll(RegExp(r'[^0-9+]'), '');
 
       if (registeredPhone.isNotEmpty) {
-        bool isSameNumber =
-            (enteredPhone == registeredPhone) ||
-            (enteredPhone.length >= 10 &&
-                registeredPhone.endsWith(enteredPhone));
-
+        bool isSameNumber = (enteredPhone == registeredPhone) ||
+            (enteredPhone.length >= 10 && registeredPhone.endsWith(enteredPhone));
         if (isSameNumber) {
-          if (_nameController.text != userName) {
-            _nameController.text = userName;
-          }
+          if (_nameController.text != userName) _nameController.text = userName;
         } else {
-          if (_nameController.text == userName) {
-            _nameController.clear();
-          }
+          if (_nameController.text == userName) _nameController.clear();
         }
       }
     }
-    setState(() {});
   }
 
   Future<void> _initializeData() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('settings')
-          .doc('delivery_zone')
-          .get()
-          .timeout(const Duration(seconds: 4));
-      if (doc.exists) {
-        _shopLocation = LatLng(doc['lat'], doc['lng']);
-        _deliveryRadius = doc['radius'].toDouble();
+      final shopDoc = await FirebaseFirestore.instance.collection('settings').doc('shop_info').get();
+      if (shopDoc.exists && shopDoc.data() != null) {
+        _shopLocation = LatLng(shopDoc['lat'], shopDoc['lng']);
       }
+
+      final zoneDocs = await FirebaseFirestore.instance.collection('delivery_zones').get();
+      List<DeliveryZone> loadedZones = [];
+      Set<Polygon> renderPolygons = {};
+
+      for (var doc in zoneDocs.docs) {
+        final data = doc.data();
+        if (data.containsKey('points')) {
+          List<dynamic> pts = data['points'];
+          List<LatLng> polygonPts = pts.map((p) => LatLng(p['lat'], p['lng'])).toList();
+          
+          loadedZones.add(DeliveryZone(
+            id: doc.id,
+            name: data['name'] ?? 'Custom Zone',
+            polygon: polygonPts,
+            freeRadiusKm: (data['freeDeliveryRadius'] as num?)?.toDouble() ?? 0.0,
+            chargePerKm: (data['chargePerKm'] as num?)?.toDouble() ?? 0.0,
+          ));
+
+          renderPolygons.add(
+            Polygon(
+              polygonId: PolygonId(doc.id),
+              points: polygonPts,
+              fillColor: _zoneColor.withOpacity(0.05),
+              strokeColor: _zoneColor.withOpacity(0.3),
+              strokeWidth: 2,
+            )
+          );
+        }
+      }
+
+      setState(() {
+        _deliveryZones = loadedZones;
+        _mapPolygons = renderPolygons;
+      });
+
     } catch (e) {
       debugPrint("Admin sync failed: $e");
     }
@@ -135,28 +169,75 @@ class _LocationPickerState extends State<LocationPage>
       await _locateUser().timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint("Locating user failed: $e");
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
+  }
+
+  bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
+    if (polygon.length < 3) return false;
+    bool isInside = false;
+    int j = polygon.length - 1;
+    
+    for (int i = 0; i < polygon.length; i++) {
+      if ((polygon[i].latitude < point.latitude && polygon[j].latitude >= point.latitude ||
+          polygon[j].latitude < point.latitude && polygon[i].latitude >= point.latitude) &&
+          (polygon[i].longitude <= point.longitude || polygon[j].longitude <= point.longitude)) {
+        if (polygon[i].longitude + (point.latitude - polygon[i].latitude) / 
+            (polygon[j].latitude - polygon[i].latitude) * (polygon[j].longitude - polygon[i].longitude) < point.longitude) {
+          isInside = !isInside;
+        }
+      }
+      j = i;
+    }
+    return isInside;
+  }
+
+  void _updateMetrics(LatLng pos, double zoom) {
+    bool foundZone = false;
+    DeliveryZone? matchedZone;
+
+    for (var zone in _deliveryZones) {
+      if (_isPointInPolygon(pos, zone.polygon)) {
+        foundZone = true;
+        matchedZone = zone;
+        break;
+      }
+    }
+
+    double fee = 0.0;
+    if (foundZone && matchedZone != null) {
+      double distanceMeters = Geolocator.distanceBetween(
+        _shopLocation.latitude, _shopLocation.longitude,
+        pos.latitude, pos.longitude,
+      );
+      
+      double distanceKm = distanceMeters / 1000;
+      if (distanceKm > matchedZone.freeRadiusKm) {
+        double chargeableKm = distanceKm - matchedZone.freeRadiusKm;
+        fee = chargeableKm * matchedZone.chargePerKm;
+      }
+    }
+
+    setState(() {
+      _isServiceable = foundZone;
+      _activeZone = matchedZone;
+      _calculatedDeliveryFee = fee;
+      _currentZoom = zoom;
+    });
   }
 
   Future<void> _locateUser() async {
     LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied)
-      permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
 
-    if (permission == LocationPermission.whileInUse ||
-        permission == LocationPermission.always) {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+    if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       LatLng userPos = LatLng(position.latitude, position.longitude);
 
       final GoogleMapController controller = await _controller.future;
-      controller.animateCamera(CameraUpdate.newLatLngZoom(userPos, 20.0));
+      controller.animateCamera(CameraUpdate.newLatLngZoom(userPos, 18.0));
 
-      _updateMetrics(userPos, 20.0);
+      _updateMetrics(userPos, 18.0);
       _decodeAddress(userPos);
     }
 
@@ -166,13 +247,11 @@ class _LocationPickerState extends State<LocationPage>
   Future<void> _goToShopZone() async {
     final GoogleMapController controller = await _controller.future;
     controller.animateCamera(CameraUpdate.newLatLngZoom(_shopLocation, 13.0));
-    _updateMetrics(_shopLocation, 13.0);
   }
 
   void _onCameraMove(CameraPosition position) {
     if (!_isPinningMode) return;
     if (!_isMapMoving) setState(() => _isMapMoving = true);
-
     _currentCameraPosition = position.target;
     _currentZoom = position.zoom;
   }
@@ -185,53 +264,57 @@ class _LocationPickerState extends State<LocationPage>
     _decodeAddress(_currentCameraPosition);
   }
 
-  void _updateMetrics(LatLng pos, double zoom) {
-    double distance = Geolocator.distanceBetween(
-      _shopLocation.latitude,
-      _shopLocation.longitude,
-      pos.latitude,
-      pos.longitude,
-    );
-    setState(() {
-      _isServiceable = distance <= _deliveryRadius;
-      _currentZoom = zoom;
-    });
-  }
-
   Future<void> _decodeAddress(LatLng pos) async {
+    bool isWaterOrInvalid = true;
+
     try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        pos.latitude,
-        pos.longitude,
-      );
+      List<Placemark> placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        String title = place.name ?? "";
-        String sub = place.subLocality ?? "";
-        String city = place.locality ?? "";
-        String address = [
-          title,
-          sub,
-          city,
-        ].where((e) => e.isNotEmpty).toSet().join(", ");
+        
+        String name = place.name ?? "";
+        String street = place.street ?? "";
+        String subLocality = place.subLocality ?? "";
+        String locality = place.locality ?? "";
+
+        String address = [name, subLocality, locality].where((e) => e.isNotEmpty).toSet().join(", ");
+        
+        String lowerName = name.toLowerCase();
+        
+        bool isWaterByName = (lowerName.contains("sea") || 
+                              lowerName.contains("ocean") || 
+                              lowerName.contains("river") || 
+                              lowerName.contains("lake") || 
+                              lowerName.contains("bay"));
+                              
+        bool isMiddleOfNowhere = subLocality.isEmpty && locality.isEmpty && street.isEmpty;
+
+        if (isMiddleOfNowhere || (isWaterByName && subLocality.isEmpty)) {
+          isWaterOrInvalid = true;
+        } else {
+          isWaterOrInvalid = false;
+        }
 
         setState(() {
-          _detectedAddress = address;
-          _areaController.text = [
-            sub,
-            city,
-          ].where((e) => e.isNotEmpty).join(", ");
+          _detectedAddress = address.isEmpty ? "Unknown Terrain" : address;
+          _areaController.text = [subLocality, locality].where((e) => e.isNotEmpty).join(", ");
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      setState(() {
+        _detectedAddress = "Cannot identify location";
+      });
+    }
+
+    setState(() {
+      _isInvalidArea = isWaterOrInvalid;
+    });
   }
 
   void _showSavedAddressesSheet() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please login to view saved addresses")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please login to view saved addresses")));
       return;
     }
 
@@ -243,81 +326,40 @@ class _LocationPickerState extends State<LocationPage>
         return Container(
           height: MediaQuery.of(context).size.height * 0.65,
           padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-          ),
+          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)))),
               const SizedBox(height: 20),
-              Text(
-                "SAVED ADDRESSES",
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black87,
-                ),
-              ),
+              Text("SAVED ADDRESSES", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.black87)),
               const SizedBox(height: 20),
 
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user.uid)
-                      .collection('addresses')
-                      .orderBy('createdAt', descending: true)
-                      .snapshots(),
+                  stream: FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').orderBy('createdAt', descending: true).snapshots(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFFFF2E74),
-                        ),
-                      );
-                    }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Color(0xFFFF2E74)));
+                    if (!snapshot.hasData || (snapshot.data?.docs.isEmpty ?? true)) {
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.location_off_rounded,
-                              size: 50,
-                              color: Colors.grey[300],
-                            ),
+                            Icon(Icons.location_off_rounded, size: 50, color: Colors.grey[300]),
                             const SizedBox(height: 10),
-                            Text(
-                              "No saved addresses yet.",
-                              style: GoogleFonts.inter(
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
+                            Text("No saved addresses yet.", style: GoogleFonts.inter(color: Colors.grey, fontWeight: FontWeight.w500)),
                           ],
                         ),
                       );
                     }
 
-                    final docs = snapshot.data!.docs;
+                    final docs = snapshot.data?.docs ?? [];
                     return ListView.separated(
                       itemCount: docs.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 30),
+                      separatorBuilder: (context, index) => const Divider(height: 30),
                       itemBuilder: (context, index) {
                         final doc = docs[index];
-                        final data = doc.data() as Map<String, dynamic>;
+                        final data = (doc.data() as Map<String, dynamic>?) ?? {};
 
                         String label = data['label'] ?? 'Other';
                         IconData labelIcon = Icons.location_on_rounded;
@@ -339,6 +381,8 @@ class _LocationPickerState extends State<LocationPage>
                                     'phone': data['receiverPhone'],
                                     'name': data['receiverName'],
                                     'label': data['label'] ?? 'Other',
+                                    'deliveryFee': data['deliveryFee'] ?? 0.0, 
+                                    'zoneName': data['zoneName'] ?? 'Unknown',
                                   });
                                 },
                                 child: Row(
@@ -346,77 +390,29 @@ class _LocationPickerState extends State<LocationPage>
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[100],
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: Icon(
-                                        labelIcon,
-                                        color: Colors.black87,
-                                      ),
+                                      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(14)),
+                                      child: Icon(labelIcon, color: Colors.black87),
                                     ),
                                     const SizedBox(width: 15),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
                                               Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black87,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  label.toUpperCase(),
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
+                                                child: Text(label.toUpperCase(), style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
                                               ),
                                               const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  data['receiverName'] ??
-                                                      'Name',
-                                                  style: GoogleFonts.inter(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 14,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
+                                              Expanded(child: Text(data['receiverName'] ?? 'Name', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14), overflow: TextOverflow.ellipsis)),
                                             ],
                                           ),
                                           const SizedBox(height: 6),
-                                          Text(
-                                            data['fullAddress'] ?? '',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              color: Colors.grey[700],
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                                          Text(data['fullAddress'] ?? '', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700]), maxLines: 2, overflow: TextOverflow.ellipsis),
                                           const SizedBox(height: 4),
-                                          Text(
-                                            data['receiverPhone'] ?? '',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              color: Colors.grey[500],
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
+                                          Text(data['receiverPhone'] ?? '', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w600)),
                                         ],
                                       ),
                                     ),
@@ -424,20 +420,10 @@ class _LocationPickerState extends State<LocationPage>
                                 ),
                               ),
                             ),
-
                             IconButton(
-                              icon: Icon(
-                                Icons.delete_outline_rounded,
-                                color: Colors.red[400],
-                                size: 22,
-                              ),
+                              icon: Icon(Icons.delete_outline_rounded, color: Colors.red[400], size: 22),
                               onPressed: () async {
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(user.uid)
-                                    .collection('addresses')
-                                    .doc(doc.id)
-                                    .delete();
+                                await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').doc(doc.id).delete();
                               },
                             ),
                           ],
@@ -457,14 +443,12 @@ class _LocationPickerState extends State<LocationPage>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: _accentPink)),
-      );
+      return Scaffold(backgroundColor: Colors.white, body: Center(child: CircularProgressIndicator(color: _accentPink)));
     }
 
-    bool isZoomedDeep = _currentZoom >= 17.0;
-    bool canPickLocation = _isServiceable && isZoomedDeep;
+    bool isZoomedDeep = _currentZoom >= 17.5; 
+    
+    bool canPickLocation = !_isInvalidArea && _isServiceable && isZoomedDeep;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -472,10 +456,7 @@ class _LocationPickerState extends State<LocationPage>
       body: Stack(
         children: [
           GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _currentCameraPosition,
-              zoom: 18,
-            ),
+            initialCameraPosition: CameraPosition(target: _currentCameraPosition, zoom: 18),
             minMaxZoomPreference: const MinMaxZoomPreference(10, 22),
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
@@ -490,68 +471,36 @@ class _LocationPickerState extends State<LocationPage>
             },
             onCameraMove: _onCameraMove,
             onCameraIdle: _onCameraIdle,
-            circles: {
-              Circle(
-                circleId: const CircleId("delivery_zone"),
-                center: _shopLocation,
-                radius: _deliveryRadius,
-                fillColor: _accentPink.withOpacity(0.05),
-                strokeColor: _accentPink.withOpacity(0.3),
-                strokeWidth: 1,
-              ),
-            },
+            polygons: _mapPolygons,
           ),
 
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 100,
+            top: 0, left: 0, right: 0, height: 100,
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withOpacity(0.9),
-                    Colors.white.withOpacity(0.0),
-                  ],
-                ),
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.0)]),
               ),
             ),
           ),
 
           Positioned(
-            top: 50,
-            left: 20,
+            top: 50, left: 20,
             child: _buildGlassBtn(Icons.arrow_back_ios_new, () {
-              if (!_isPinningMode) {
-                setState(() => _isPinningMode = true);
-              } else {
-                Navigator.pop(context);
-              }
+              if (!_isPinningMode) setState(() => _isPinningMode = true);
+              else Navigator.pop(context);
             }),
           ),
 
           if (_isPinningMode)
             Positioned(
-              top: 50,
-              right: 20,
+              top: 50, right: 20,
               child: Row(
                 children: [
-                  _buildGlassBtn(
-                    Icons.bookmarks_rounded,
-                    _showSavedAddressesSheet,
-                    label: "Saved",
-                  ),
+                  _buildGlassBtn(Icons.bookmarks_rounded, _showSavedAddressesSheet, label: "Saved"),
                   const SizedBox(width: 8),
                   _buildGlassBtn(Icons.storefront_rounded, _goToShopZone),
                   const SizedBox(width: 8),
-                  _buildGlassBtn(
-                    Icons.my_location_rounded,
-                    _locateUser,
-                    color: _accentPink,
-                  ),
+                  _buildGlassBtn(Icons.my_location_rounded, _locateUser, color: _accentPink),
                 ],
               ),
             ),
@@ -563,11 +512,7 @@ class _LocationPickerState extends State<LocationPage>
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
-                  transform: Matrix4.translationValues(
-                    0,
-                    _isMapMoving ? -15 : 0,
-                    0,
-                  ),
+                  transform: Matrix4.translationValues(0, _isMapMoving ? -15 : 0, 0),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -575,38 +520,21 @@ class _LocationPickerState extends State<LocationPage>
                         duration: const Duration(milliseconds: 200),
                         opacity: _isMapMoving ? 1.0 : 0.0,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black87,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            "Release to pick",
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)),
+                          child: Text("Release to pick", style: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                         ),
                       ),
                       const SizedBox(height: 5),
                       Icon(
-                        Icons.location_on,
-                        size: 50,
-                        color: _isServiceable ? _accentPink : Colors.grey,
+                        Icons.location_on, 
+                        size: 50, 
+                        color: _isInvalidArea ? Colors.blueAccent : (_isServiceable ? _accentPink : Colors.grey)
                       ),
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        height: 6,
-                        width: _isMapMoving ? 6 : 12,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
+                        height: 6, width: _isMapMoving ? 6 : 12,
+                        decoration: BoxDecoration(color: Colors.black.withOpacity(0.2), shape: BoxShape.circle),
                       ),
                     ],
                   ),
@@ -620,16 +548,8 @@ class _LocationPickerState extends State<LocationPage>
               duration: const Duration(milliseconds: 300),
               switchInCurve: Curves.easeOutQuart,
               switchOutCurve: Curves.easeInQuart,
-              transitionBuilder: (child, animation) => SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
-              ),
-              child: _isPinningMode
-                  ? _buildPinningPanel(canPickLocation, isZoomedDeep)
-                  : _buildDetailsPanel(),
+              transitionBuilder: (child, animation) => SlideTransition(position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation), child: child),
+              child: _isPinningMode ? _buildPinningPanel(canPickLocation, isZoomedDeep) : _buildDetailsPanel(),
             ),
           ),
         ],
@@ -642,82 +562,56 @@ class _LocationPickerState extends State<LocationPage>
     Color btnColor = _accentPink;
     IconData btnIcon = Icons.check_circle_outline;
 
-    if (!_isServiceable) {
+    if (_isInvalidArea) {
+      statusText = "MOVE PIN TO LAND AREA";
+      btnColor = Colors.blueAccent;
+      btnIcon = Icons.water_drop_outlined;
+      canPick = false;
+    } else if (!_isServiceable) {
       statusText = "OUT OF DELIVERY ZONE";
       btnColor = Colors.redAccent;
       btnIcon = Icons.block;
+      canPick = false;
     } else if (!isZoomedDeep) {
       statusText = "ZOOM IN CLOSER";
       btnColor = Colors.orangeAccent;
       btnIcon = Icons.zoom_in;
+      canPick = false;
     }
 
     return Container(
       key: const ValueKey("PinningPanel"),
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 30,
-            spreadRadius: 5,
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(30)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30, spreadRadius: 5)]),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
           const SizedBox(height: 20),
 
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.location_on_rounded,
-                  color: _isServiceable ? _accentPink : Colors.grey,
-                ),
+                decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+                child: Icon(Icons.location_on_rounded, color: _isInvalidArea ? Colors.blueAccent : (_isServiceable ? _accentPink : Colors.grey)),
               ),
               const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "DETECTED LOCATION",
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: Colors.grey[500],
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
+                    Text("DETECTED LOCATION", style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500], fontWeight: FontWeight.bold, letterSpacing: 1)),
                     const SizedBox(height: 2),
-                    Text(
-                      _detectedAddress,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.black87,
-                        fontWeight: FontWeight.w600,
+                    Text(_detectedAddress, style: GoogleFonts.inter(fontSize: 14, color: _isInvalidArea ? Colors.blueAccent : Colors.black87, fontWeight: FontWeight.w600), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    
+                    if (_isServiceable && _activeZone != null && !_isInvalidArea) ...[
+                      const SizedBox(height: 4),
+                      Text("Zone: ${_activeZone!.name} | Est. Fee: ₹${_calculatedDeliveryFee.toStringAsFixed(0)}", 
+                        style: GoogleFonts.inter(fontSize: 11, color: _zoneColor, fontWeight: FontWeight.bold)
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    ]
                   ],
                 ),
               ),
@@ -725,36 +619,15 @@ class _LocationPickerState extends State<LocationPage>
           ),
           const SizedBox(height: 25),
           SizedBox(
-            width: double.infinity,
-            height: 55,
+            width: double.infinity, height: 55,
             child: ElevatedButton(
-              onPressed: canPick
-                  ? () {
-                      setState(() => _isPinningMode = false);
-                    }
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: btnColor,
-                disabledBackgroundColor: btnColor.withOpacity(0.2),
-                disabledForegroundColor: btnColor,
-                elevation: canPick ? 5 : 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
+              onPressed: canPick ? () => setState(() => _isPinningMode = false) : null,
+              style: ElevatedButton.styleFrom(backgroundColor: btnColor, disabledBackgroundColor: btnColor.withOpacity(0.2), disabledForegroundColor: btnColor, elevation: canPick ? 5 : 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(btnIcon, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    statusText,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                  Icon(btnIcon, size: 20), const SizedBox(width: 10),
+                  Text(statusText, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
                 ],
               ),
             ),
@@ -767,148 +640,56 @@ class _LocationPickerState extends State<LocationPage>
   Widget _buildDetailsPanel() {
     return Container(
       key: const ValueKey("DetailsPanel"),
-      padding: EdgeInsets.fromLTRB(
-        24,
-        20,
-        24,
-        MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30),
-        ],
-      ),
+      padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(30)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30)]),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
+          Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)))),
 
-          Text(
-            "DELIVERY DETAILS",
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Colors.black87,
-            ),
-          ),
+          Text("DELIVERY DETAILS", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.black87)),
           const SizedBox(height: 20),
 
           Row(
             children: [
-              Expanded(
-                child: _buildInput(
-                  _houseController,
-                  "House / Flat No.",
-                  Icons.home_rounded,
-                ),
-              ),
+              Expanded(child: _buildInput(_houseController, "House / Flat No.", Icons.home_rounded)),
               const SizedBox(width: 15),
-              Expanded(
-                child: _buildInput(
-                  _areaController,
-                  "Area / Locality",
-                  Icons.map_rounded,
-                ),
-              ),
+              Expanded(child: _buildInput(_areaController, "Area / Locality", Icons.map_rounded)),
             ],
           ),
           const SizedBox(height: 15),
-          _buildInput(
-            _landmarkController,
-            "Landmark (Optional)",
-            Icons.flag_rounded,
-          ),
+          _buildInput(_landmarkController, "Landmark (Optional)", Icons.flag_rounded),
           const SizedBox(height: 15),
 
           Row(
             children: [
-              Expanded(
-                flex: 5,
-                child: _buildInput(
-                  _phoneController,
-                  "Receiver's Number",
-                  Icons.phone_rounded,
-                  keyboardType: TextInputType.phone,
-                ),
-              ),
+              Expanded(flex: 5, child: _buildInput(_phoneController, "Receiver's Number", Icons.phone_rounded, keyboardType: TextInputType.phone)),
               const SizedBox(width: 10),
-
               if (_phoneController.text.isEmpty)
                 Expanded(
                   flex: 4,
                   child: TextButton.icon(
                     onPressed: () {
                       final user = FirebaseAuth.instance.currentUser;
-                      if (user != null &&
-                          user.phoneNumber != null &&
-                          user.phoneNumber!.isNotEmpty) {
-                        _phoneController.text = user.phoneNumber!;
+                      if (user != null && (user.phoneNumber?.isNotEmpty ?? false)) {
+                        _phoneController.text = user.phoneNumber ?? '';
                       } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              "No phone number linked to this login account.",
-                            ),
-                          ),
-                        );
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No phone number linked to this login account.")));
                       }
                     },
                     icon: const Icon(Icons.person, size: 16),
-                    label: Text(
-                      "Same Number",
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _accentPink,
-                      backgroundColor: _accentPink.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 14,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                    label: Text("Same Number", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 11)),
+                    style: TextButton.styleFrom(foregroundColor: _accentPink, backgroundColor: _accentPink.withOpacity(0.1), padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                   ),
                 )
               else
-                Expanded(
-                  flex: 5,
-                  child: _buildInput(
-                    _nameController,
-                    "Receiver's Name",
-                    Icons.person_outline_rounded,
-                  ),
-                ),
+                Expanded(flex: 5, child: _buildInput(_nameController, "Receiver's Name", Icons.person_outline_rounded)),
             ],
           ),
-
           const SizedBox(height: 20),
 
-          Text(
-            "SAVE AS",
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey[600],
-            ),
-          ),
+          Text("SAVE AS", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey[600])),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -916,34 +697,18 @@ class _LocationPickerState extends State<LocationPage>
               const SizedBox(width: 10),
               Expanded(child: _buildLabelChip("Work", Icons.work_rounded)),
               const SizedBox(width: 10),
-              Expanded(
-                child: _buildLabelChip("Other", Icons.location_on_rounded),
-              ),
+              Expanded(child: _buildLabelChip("Other", Icons.location_on_rounded)),
             ],
           ),
 
           const SizedBox(height: 25),
 
           SizedBox(
-            width: double.infinity,
-            height: 55,
+            width: double.infinity, height: 55,
             child: ElevatedButton(
               onPressed: _confirmAddress,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
-              ),
-              child: Text(
-                "SAVE ADDRESS",
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0),
+              child: Text("SAVE ADDRESS", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -958,75 +723,31 @@ class _LocationPickerState extends State<LocationPage>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.black87 : Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.black87 : Colors.grey[200]!,
-          ),
-        ),
+        decoration: BoxDecoration(color: isSelected ? Colors.black87 : Colors.grey[50], borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? Colors.black87 : Colors.grey[200]!)),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : Colors.grey[600],
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                color: isSelected ? Colors.white : Colors.grey[700],
-              ),
-            ),
+            Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.grey[600]), const SizedBox(width: 6),
+            Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.w600, color: isSelected ? Colors.white : Colors.grey[700])),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildGlassBtn(
-    IconData icon,
-    VoidCallback onTap, {
-    Color color = Colors.black87,
-    String? label,
-  }) {
+  Widget _buildGlassBtn(IconData icon, VoidCallback onTap, {Color color = Colors.black87, String? label}) {
     return InkWell(
       onTap: onTap,
       child: Container(
-        height: 48,
-        padding: label != null
-            ? const EdgeInsets.symmetric(horizontal: 16)
-            : null,
-        width: label != null ? null : 48,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+        height: 48, padding: label != null ? const EdgeInsets.symmetric(horizontal: 16) : null, width: label != null ? null : 48,
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))]),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: color, size: 22),
             if (label != null) ...[
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: color,
-                ),
-              ),
+              Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: color)),
             ],
           ],
         ),
@@ -1034,34 +755,12 @@ class _LocationPickerState extends State<LocationPage>
     );
   }
 
-  Widget _buildInput(
-    TextEditingController ctrl,
-    String hint,
-    IconData icon, {
-    TextInputType? keyboardType,
-  }) {
+  Widget _buildInput(TextEditingController ctrl, String hint, IconData icon, {TextInputType? keyboardType}) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
+      decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey[200]!)),
       child: TextField(
-        controller: ctrl,
-        keyboardType: keyboardType,
-        style: GoogleFonts.inter(color: Colors.black87, fontSize: 14),
-        textCapitalization: TextCapitalization.sentences,
-        decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: Colors.grey[400], size: 18),
-          hintText: hint,
-          hintStyle: GoogleFonts.inter(color: Colors.grey[400], fontSize: 13),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          isDense: true,
-        ),
+        controller: ctrl, keyboardType: keyboardType, style: GoogleFonts.inter(color: Colors.black87, fontSize: 14), textCapitalization: TextCapitalization.sentences,
+        decoration: InputDecoration(prefixIcon: Icon(icon, color: Colors.grey[400], size: 18), hintText: hint, hintStyle: GoogleFonts.inter(color: Colors.grey[400], fontSize: 13), border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), isDense: true),
       ),
     );
   }
@@ -1069,10 +768,7 @@ class _LocationPickerState extends State<LocationPage>
   Future<void> _confirmAddress() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please Login to Save Address")),
-      );
-      return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please Login to Save Address"))); return;
     }
 
     final String house = _houseController.text.trim();
@@ -1081,62 +777,39 @@ class _LocationPickerState extends State<LocationPage>
     final String phone = _phoneController.text.trim();
     final String name = _nameController.text.trim();
 
-    if (house.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter House/Flat Number")),
-      );
-      return;
-    }
-    if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter Receiver's Phone Number")),
-      );
-      return;
-    }
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter Receiver's Name")),
-      );
-      return;
-    }
+    if (house.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter House/Flat Number"))); return; }
+    if (phone.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter Receiver's Phone Number"))); return; }
+    if (name.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter Receiver's Name"))); return; }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFFF2E74)),
-      ),
-    );
+    showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator(color: Color(0xFFFF2E74))));
 
     try {
       String fullAddress = "$house, $area";
       if (landmark.isNotEmpty) fullAddress += " ($landmark)";
 
-      final String googleMapsLink =
-          "https://www.google.com/maps/search/?api=1&query=${_currentCameraPosition.latitude},${_currentCameraPosition.longitude}";
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('addresses')
-          .add({
-            'userEmail': user.email,
-            'fullAddress': fullAddress,
-            'house': house,
-            'area': area,
-            'landmark': landmark,
-            'receiverPhone': phone,
-            'receiverName': name,
-            'label': _selectedLabel,
-            'latitude': _currentCameraPosition.latitude,
-            'longitude': _currentCameraPosition.longitude,
-            'googleMapsLink': googleMapsLink,
-            'createdAt': FieldValue.serverTimestamp(),
-            'type': 'Map Selection',
-          });
+      final String googleMapsLink = "https://www.google.com/maps/search/?api=1&query=${_currentCameraPosition.latitude},${_currentCameraPosition.longitude}";
+      
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').add({
+        'userEmail': user.email,
+        'fullAddress': fullAddress,
+        'house': house,
+        'area': area,
+        'landmark': landmark,
+        'receiverPhone': phone,
+        'receiverName': name,
+        'label': _selectedLabel,
+        'latitude': _currentCameraPosition.latitude,
+        'longitude': _currentCameraPosition.longitude,
+        'googleMapsLink': googleMapsLink,
+        'createdAt': FieldValue.serverTimestamp(),
+        'type': 'Map Selection',
+        'zoneName': _activeZone?.name ?? 'Unknown',
+        'deliveryFee': _calculatedDeliveryFee,
+      });
 
       if (mounted) Navigator.pop(context);
 
-      if (mounted)
+      if (mounted) {
         Navigator.pop(context, {
           'address': fullAddress,
           'lat': _currentCameraPosition.latitude,
@@ -1145,12 +818,13 @@ class _LocationPickerState extends State<LocationPage>
           'phone': phone,
           'name': name,
           'label': _selectedLabel,
+          'zoneName': _activeZone?.name ?? 'Unknown',
+          'deliveryFee': _calculatedDeliveryFee, 
         });
+      }
     } catch (e) {
       if (mounted) Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to save address: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to save address: $e")));
     }
   }
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,8 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:project/cakepage.dart';
 import 'package:project/location.dart';
+
 import 'package:project/orderpage.dart';
+import 'package:project/giftpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -19,17 +21,17 @@ import 'package:project/cartpage1.dart';
 import 'package:project/cakepage.dart' as cake;
 import 'package:project/cupcakepage.dart';
 import 'package:project/customisepage.dart';
-import 'package:project/popsiclepage.dart' as popsicle;
+import 'package:project/giftpage.dart' as popsicle;
 import 'package:project/Profilepage2.dart';
 import 'package:project/Loginpage2.dart';
 
 class DesktopScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
-    PointerDeviceKind.touch,
-    PointerDeviceKind.mouse,
-    PointerDeviceKind.trackpad,
-  };
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+      };
 }
 
 class Secondpage extends StatefulWidget {
@@ -39,1605 +41,72 @@ class Secondpage extends StatefulWidget {
   State<Secondpage> createState() => _SecondpageState();
 }
 
-class _SecondpageState extends State<Secondpage> {
+class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
   PageController? _pageController;
   Timer? _timer;
   String userName = "Guest";
   String userAddress = "Select Location";
-  int _currentIndex = 0;
+  
+  int _currentIndex = 1000; 
   bool _showGpsFields = false;
   bool _isProfileExpanded = false;
 
-  Widget _buildAnimatedProfileButton(bool isMobile) {
-    final User? user = FirebaseAuth.instance.currentUser;
-    final bool isLoggedIn = user != null;
-
-    final double height = _isProfileExpanded
-        ? (isMobile ? 35.0 : 42.0)
-        : (isMobile ? 35.0 : 50.0);
-
-    final double collapsedWidth = height;
-    final double expandedWidth = isMobile ? 120.0 : 160.0;
-
-    final double avatarSize = _isProfileExpanded
-        ? (isMobile ? 24.0 : 30.0)
-        : (isMobile ? 25.0 : 38.0);
-
-    final double iconSize = _isProfileExpanded
-        ? (isMobile ? 16.0 : 20.0)
-        : (isMobile ? 20.0 : 24.0);
-
-    final double fontSize = isMobile ? 10.0 : 12.0;
-    final double paddingGap = isMobile ? 8.0 : 12.0;
-
-    double containerWidth = _isProfileExpanded ? expandedWidth : collapsedWidth;
-
-    return GestureDetector(
-      onTap: () async {
-        if (!_isProfileExpanded) {
-          setState(() => _isProfileExpanded = true);
-          Future.delayed(const Duration(seconds: 4), () {
-            if (mounted && _isProfileExpanded) {
-              setState(() => _isProfileExpanded = false);
-            }
-          });
-        } else {
-          if (isLoggedIn) {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const Profilepage2()),
-            );
-            _loadUserData();
-          } else {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const Loginpage2()),
-            );
-            _loadUserData();
-          }
-          if (mounted) setState(() => _isProfileExpanded = false);
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutBack,
-        width: containerWidth,
-        height: height,
-        decoration: BoxDecoration(
-          color: _isProfileExpanded
-              ? (isLoggedIn
-                    ? Colors.white.withOpacity(0.2)
-                    : const Color(0xFFDA008A).withOpacity(0.8))
-              : Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(50),
-          border: Border.all(
-            color: _isProfileExpanded ? Colors.white54 : Colors.white24,
-            width: 1.5,
-          ),
-        ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const NeverScrollableScrollPhysics(),
-          child: Container(
-            constraints: BoxConstraints(minWidth: containerWidth),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: avatarSize,
-                  height: avatarSize,
-                  decoration: const BoxDecoration(shape: BoxShape.circle),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.transparent,
-                    backgroundImage: (isLoggedIn && user?.photoURL != null)
-                        ? NetworkImage(user!.photoURL!)
-                        : null,
-                    child: (isLoggedIn && user?.photoURL != null)
-                        ? null
-                        : Icon(
-                            isLoggedIn
-                                ? Icons.person_2_sharp
-                                : Icons.person_2_outlined,
-                            color: Colors.white,
-                            size: iconSize,
-                          ),
-                  ),
-                ),
-
-                if (_isProfileExpanded) ...[
-                  SizedBox(width: paddingGap),
-
-                  _buildLiveUserNameText(fontSize, Colors.white),
-                  SizedBox(width: paddingGap),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLiveUserNameText(double fontSize, Color color) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null)
-      return Text(
-        "LOGIN",
-        style: GoogleFonts.montserrat(
-          fontSize: fontSize,
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        String nameToShow = "BAKER";
-
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-
-          if (data['username'] != null &&
-              data['username'].toString().isNotEmpty) {
-            nameToShow = data['username'];
-          }
-        } else if (user.displayName != null) {
-          nameToShow = user.displayName!;
-        }
-
-        nameToShow = nameToShow.split(' ')[0].toUpperCase();
-
-        return Text(
-          nameToShow,
-          style: GoogleFonts.montserrat(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: fontSize,
-          ),
-        );
-      },
-    );
-  }
+  AnimationController? _bounceController;
+  Animation<double>? _bounceAnimation;
+  double _dragOffset = 0.0;
+  int? _draggedCardIndex;
+  bool _isAnimatingRelease = false;
+  bool _isHoldingSlider = false; 
 
   final String allowedCity = "Kochi";
-
   final Color _accentPink = const Color.fromARGB(255, 218, 0, 138);
   final Color _bgBlack = const Color(0xFF050505);
 
-  final List<String> cakeImages = ["assets/cake.jpg", "assets/cupcake.jpg"];
+  final List<String> cakeImages = [
+    "assets/cake1.jpg",
+    "assets/cupcake1.jpg",
+    "assets/GIFTS.jpg"
+  ];
 
-  final List<String> cakeNames = ["Cakes", "Cup Cakes"];
+  final List<String> cakeNames = ["Cakes", "Cup Cakes", "Gifts"];
 
   static const int _initialPage = 1000;
-  final TextEditingController _manualAddressController =
-      TextEditingController();
-  final TextEditingController _areaController = TextEditingController();
-  final TextEditingController _homeController = TextEditingController();
-  final TextEditingController _landmarkController = TextEditingController();
+  final TextEditingController _manualAddressController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
-
     _startAutoSlider();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {});
-  }
-
-  Future<void> _determinePosition() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFFF2E74)),
-      ),
+    
+    _bounceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600), 
+    );
+    
+    _bounceAnimation = Tween<double>(begin: 0.0, end: -60.0).animate(
+      CurvedAnimation(parent: _bounceController!, curve: Curves.easeInOut),
     );
 
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        Navigator.pop(context);
-        _showSnackBar("Please enable Location Services (GPS)");
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          Navigator.pop(context);
-          _showSnackBar("Location permission denied");
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        Navigator.pop(context);
-        _showSnackBar("Location permissions permanently denied");
-        return;
-      }
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      double shopLat = 9.9312;
-      double shopLng = 76.2673;
-      double maxRadius = 15000;
-
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('settings')
-            .doc('delivery_zone')
-            .get()
-            .timeout(const Duration(seconds: 3));
-        if (doc.exists && doc.data() != null) {
-          shopLat = (doc.data()!['lat'] as num).toDouble();
-          shopLng = (doc.data()!['lng'] as num).toDouble();
-          maxRadius = (doc.data()!['radius'] as num).toDouble();
-        }
-      } catch (e) {
-        debugPrint("Failed to fetch custom zone, using default 15km.");
-      }
-
-      double distanceInMeters = Geolocator.distanceBetween(
-        shopLat,
-        shopLng,
-        position.latitude,
-        position.longitude,
-      );
-
-      if (distanceInMeters > maxRadius) {
-        if (mounted) {
-          Navigator.pop(context);
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Row(
-                children: [
-                  const Icon(
-                    Icons.block_flipped,
-                    color: Colors.redAccent,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    "Out of Zone",
-                    style: GoogleFonts.playfairDisplay(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-              content: Text(
-                "Sorry, your location is ${(distanceInMeters / 1000).toStringAsFixed(1)} km away. We only deliver within ${(maxRadius / 1000).toStringAsFixed(0)} km.",
-                style: GoogleFonts.inter(color: Colors.black87),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    "OK",
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFFFF2E74),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        return;
-      }
-
-      String detectedArea = "";
-      if (!kIsWeb) {
-        try {
-          List<Placemark> placemarks = await placemarkFromCoordinates(
-            position.latitude,
-            position.longitude,
-          );
-          if (placemarks.isNotEmpty) {
-            Placemark place = placemarks[0];
-            List<String> parts = [];
-            if (place.subLocality != null && place.subLocality!.isNotEmpty)
-              parts.add(place.subLocality!);
-            if (place.locality != null && place.locality!.isNotEmpty)
-              parts.add(place.locality!);
-            detectedArea = parts.join(", ");
-          }
-        } catch (e) {
-          print(e);
-        }
-      }
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      _showAddressDetailsEntrySheet(
-        detectedArea,
-        lat: position.latitude,
-        lng: position.longitude,
-      );
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        _showSnackBar("Failed to get location.");
-      }
-    }
-  }
-
-  void _showGpsDetailsInput(String baseAddress) {
-    final TextEditingController houseController = TextEditingController();
-    final TextEditingController areaController = TextEditingController();
-    final TextEditingController landmarkController = TextEditingController();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Center(
-            child: Container(
-              width: 340,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "COMPLETE YOUR ADDRESS",
-                    style: GoogleFonts.montserrat(
-                      color: _accentPink,
-                      fontSize: 10,
-                      letterSpacing: 1.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    baseAddress,
-                    style: GoogleFonts.inter(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  _buildTransparentField(
-                    houseController,
-                    "House / Flat No.",
-                    Icons.home_work_outlined,
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildTransparentField(
-                    areaController,
-                    "Area / Road / Colony",
-                    Icons.add_road_rounded,
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildTransparentField(
-                    landmarkController,
-                    "Landmark (Optional)",
-                    Icons.assistant_photo_outlined,
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accentPink,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                      ),
-                      onPressed: () async {
-                        if (houseController.text.isEmpty ||
-                            areaController.text.isEmpty) {
-                          _showSnackBar("Please fill House and Area details");
-                          return;
-                        }
-
-                        final String finalAddress =
-                            "${houseController.text}, ${areaController.text}, ${landmarkController.text.isNotEmpty ? landmarkController.text + ', ' : ''} $baseAddress";
-
-                        setState(() {
-                          userAddress = finalAddress;
-                          _manualAddressController.text = finalAddress;
-                        });
-
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user != null) {
-                          await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(user.uid)
-                              .collection('addresses')
-                              .add({
-                                'fullAddress': finalAddress,
-                                'timestamp': FieldValue.serverTimestamp(),
-                              });
-                        }
-
-                        Navigator.pop(context);
-                        _showSnackBar("Location confirmed!");
-                      },
-                      child: const Text(
-                        "CONFIRM ADDRESS",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _getAddressFromLatLng(Position position) async {
-    try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      Placemark place = placemarks[0];
-
-      String gpsDetectedBase =
-          "${place.locality}, ${place.subAdministrativeArea}";
-
-      if (gpsDetectedBase.contains(allowedCity)) {
-        if (Navigator.canPop(context)) Navigator.pop(context);
-        _showGpsDetailsInput(gpsDetectedBase);
-      } else {
-        if (Navigator.canPop(context)) Navigator.pop(context);
-        _showErrorDialog("Sorry! We currently no servies on your location.");
-      }
-    } catch (e) {
-      debugPrint("Geocoding failed: $e");
-    }
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.montserrat()),
-        backgroundColor: _accentPink,
-      ),
-    );
-  }
-
-  Widget _buildTransparentField(
-    TextEditingController controller,
-    String hint,
-    IconData icon,
-  ) {
-    return TextField(
-      controller: controller,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
-      decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: Colors.white38, size: 18),
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-        filled: true,
-        fillColor: Colors.black.withOpacity(0.2),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 12,
-          horizontal: 16,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Icon(Icons.error_outline, color: Colors.red, size: 40),
-        content: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.montserrat(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("OK", style: TextStyle(color: Colors.white54)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showGpsAddressInputDialog(String baseAddress) {
-    final TextEditingController houseController = TextEditingController();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Center(
-            child: Container(
-              width: 340,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "CONFIRM ADDRESS",
-                    style: GoogleFonts.montserrat(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      letterSpacing: 1.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    baseAddress,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: houseController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: "House / Flat / Landmark",
-                      hintStyle: TextStyle(color: Colors.white38),
-                      filled: true,
-                      fillColor: Colors.black.withOpacity(0.3),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accentPink,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      onPressed: () {
-                        final fullAddress =
-                            "${houseController.text}, $baseAddress";
-
-                        setState(() {
-                          userAddress = fullAddress;
-                          _manualAddressController.text = fullAddress;
-                        });
-
-                        Navigator.pop(context);
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          "CONFIRM ADDRESS",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showLocationDetailsDialog() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _showSnackBar("Please login to manage addresses");
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.85,
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 25),
-
-              Text(
-                "SAVED ADDRESSES",
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey[500],
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(height: 15),
-
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user.uid)
-                      .collection('addresses')
-                      .orderBy('createdAt', descending: true)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFFFF2E74),
-                        ),
-                      );
-                    }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: Center(
-                          child: Text(
-                            "No saved addresses yet.",
-                            style: GoogleFonts.inter(
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    final docs = snapshot.data!.docs;
-                    return ListView.separated(
-                      padding: EdgeInsets.zero,
-                      itemCount: docs.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 30),
-                      itemBuilder: (context, index) {
-                        final doc = docs[index];
-                        final data = doc.data() as Map<String, dynamic>;
-
-                        String label = data['label'] ?? 'Other';
-                        IconData labelIcon = Icons.location_on_rounded;
-                        if (label == 'Home') labelIcon = Icons.home_rounded;
-                        if (label == 'Work') labelIcon = Icons.work_rounded;
-
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  Navigator.pop(context);
-                                  setState(() {
-                                    String area = data['area'] ?? '';
-                                    userAddress = area.isNotEmpty
-                                        ? area
-                                        : (data['fullAddress'] ?? "");
-                                    _manualAddressController.text = userAddress;
-                                  });
-                                  final prefs =
-                                      await SharedPreferences.getInstance();
-                                  prefs.setString('userAddress', userAddress);
-                                },
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[100],
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: Icon(
-                                        labelIcon,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 15),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black87,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  label.toUpperCase(),
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  data['receiverName'] ??
-                                                      'Name',
-                                                  style: GoogleFonts.inter(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 14,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            data['fullAddress'] ?? '',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              color: Colors.grey[700],
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.delete_outline_rounded,
-                                color: Colors.red[400],
-                                size: 22,
-                              ),
-                              onPressed: () async {
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(user.uid)
-                                    .collection('addresses')
-                                    .doc(doc.id)
-                                    .delete();
-
-                                _loadUserData();
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-
-              const Divider(height: 40),
-
-              Text(
-                "ADD NEW ADDRESS",
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey[500],
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildLocationActionBtn(
-                      "Current\nLocation",
-                      Icons.my_location_rounded,
-                      Colors.blueAccent,
-                      () {
-                        Navigator.pop(context);
-                        _determinePosition();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildLocationActionBtn(
-                      "Select on\nMap",
-                      Icons.map_outlined,
-                      Colors.orangeAccent,
-                      () async {
-                        Navigator.pop(context);
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LocationPage(),
-                          ),
-                        );
-                        if (result != null && result is Map) {
-                          setState(() {
-                            userAddress =
-                                result['address']?.split(',').last.trim() ??
-                                "Location Set";
-                            _manualAddressController.text = userAddress;
-                          });
-                          final prefs = await SharedPreferences.getInstance();
-                          prefs.setString('userAddress', userAddress);
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildLocationActionBtn(
-    String label,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 22),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.1)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 30),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                height: 1.3,
-                color: Colors.black87,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAddressDetailsEntrySheet(
-    String detectedArea, {
-    double? lat,
-    double? lng,
-  }) {
-    final TextEditingController areaCtrl = TextEditingController(
-      text: detectedArea,
-    );
-    final TextEditingController houseCtrl = TextEditingController();
-    final TextEditingController landmarkCtrl = TextEditingController();
-    final TextEditingController phoneCtrl = TextEditingController();
-    final TextEditingController nameCtrl = TextEditingController();
-    String selectedLabel = "Home";
-
-    void onPhoneChangedLocal(StateSetter setStateLocal) {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final userPhone = user.phoneNumber ?? "";
-        String userName = user.displayName ?? (user.email?.split('@')[0] ?? "");
-
-        String enteredPhone = phoneCtrl.text.replaceAll(RegExp(r'[^0-9+]'), '');
-        String registeredPhone = userPhone.replaceAll(RegExp(r'[^0-9+]'), '');
-
-        if (registeredPhone.isNotEmpty) {
-          bool isSameNumber =
-              (enteredPhone == registeredPhone) ||
-              (enteredPhone.length >= 10 &&
-                  registeredPhone.endsWith(enteredPhone));
-          if (isSameNumber) {
-            if (nameCtrl.text != userName) nameCtrl.text = userName;
-          } else {
-            if (nameCtrl.text == userName) nameCtrl.clear();
-          }
-        }
-      }
-      setStateLocal(() {});
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateLocal) {
-            phoneCtrl.addListener(() => onPhoneChangedLocal(setStateLocal));
-
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                ),
-                padding: const EdgeInsets.all(24),
-                child: SafeArea(
-                  top: false,
-
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Container(
-                            width: 45,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 25),
-                        Text(
-                          "COMPLETE ADDRESS",
-                          style: GoogleFonts.montserrat(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 25),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildInput(
-                                houseCtrl,
-                                "House / Flat No.",
-                                Icons.home_filled,
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: _buildInput(
-                                areaCtrl,
-                                "Area / Street",
-                                Icons.map_outlined,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildInput(
-                          landmarkCtrl,
-                          "Landmark (Optional)",
-                          Icons.flag_outlined,
-                        ),
-                        const SizedBox(height: 16),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 5,
-                              child: _buildInput(
-                                phoneCtrl,
-                                "Receiver's Number",
-                                Icons.phone_rounded,
-                                keyboardType: TextInputType.phone,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-
-                            if (phoneCtrl.text.isEmpty)
-                              Expanded(
-                                flex: 4,
-                                child: TextButton.icon(
-                                  onPressed: () {
-                                    final user =
-                                        FirebaseAuth.instance.currentUser;
-                                    if (user != null &&
-                                        user.phoneNumber != null &&
-                                        user.phoneNumber!.isNotEmpty) {
-                                      phoneCtrl.text = user.phoneNumber!;
-                                    } else {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            "No phone number linked to this login account.",
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  icon: const Icon(Icons.person, size: 16),
-                                  label: Text(
-                                    "Same",
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: const Color(0xFFFF2E74),
-                                    backgroundColor: const Color(
-                                      0xFFFF2E74,
-                                    ).withOpacity(0.1),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 5,
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              Expanded(
-                                flex: 5,
-                                child: _buildInput(
-                                  nameCtrl,
-                                  "Receiver's Name",
-                                  Icons.person_outline_rounded,
-                                ),
-                              ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 20),
-                        Text(
-                          "SAVE AS",
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildLabelChipSheet(
-                                "Home",
-                                Icons.home_rounded,
-                                selectedLabel,
-                                (lbl) =>
-                                    setStateLocal(() => selectedLabel = lbl),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _buildLabelChipSheet(
-                                "Work",
-                                Icons.work_rounded,
-                                selectedLabel,
-                                (lbl) =>
-                                    setStateLocal(() => selectedLabel = lbl),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _buildLabelChipSheet(
-                                "Other",
-                                Icons.location_on_rounded,
-                                selectedLabel,
-                                (lbl) =>
-                                    setStateLocal(() => selectedLabel = lbl),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 30),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 55,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            onPressed: () async {
-                              if (areaCtrl.text.isEmpty ||
-                                  houseCtrl.text.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Please fill House No. and Area",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    backgroundColor: Colors.black87,
-                                  ),
-                                );
-                                return;
-                              }
-                              if (phoneCtrl.text.isEmpty ||
-                                  nameCtrl.text.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Please fill Receiver details",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    backgroundColor: Colors.black87,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              String finalAddr =
-                                  "${houseCtrl.text.trim()}, ${areaCtrl.text.trim()}";
-                              if (landmarkCtrl.text.isNotEmpty)
-                                finalAddr +=
-                                    " near ${landmarkCtrl.text.trim()}";
-                              final String googleMapsLink =
-                                  "https://www.google.com/maps/search/?api=1&query=${lat ?? 0},${lng ?? 0}";
-
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user != null) {
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(user.uid)
-                                    .collection('addresses')
-                                    .add({
-                                      'userEmail': user.email,
-                                      'fullAddress': finalAddr,
-                                      'house': houseCtrl.text.trim(),
-                                      'area': areaCtrl.text.trim(),
-                                      'landmark': landmarkCtrl.text.trim(),
-                                      'receiverPhone': phoneCtrl.text.trim(),
-                                      'receiverName': nameCtrl.text.trim(),
-                                      'label': selectedLabel,
-                                      'latitude': lat,
-                                      'longitude': lng,
-                                      'googleMapsLink': googleMapsLink,
-                                      'createdAt': FieldValue.serverTimestamp(),
-                                      'type': 'Current Location',
-                                    });
-                              }
-
-                              setState(() {
-                                userAddress = areaCtrl.text.trim();
-                              });
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              prefs.setString('userAddress', userAddress);
-
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Address saved successfully!",
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            },
-                            child: Text(
-                              "SAVE ADDRESS",
-                              style: GoogleFonts.montserrat(
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildLabelChipSheet(
-    String label,
-    IconData icon,
-    String currentSelection,
-    Function(String) onSelect,
-  ) {
-    bool isSelected = currentSelection == label;
-    return GestureDetector(
-      onTap: () => onSelect(label),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.black87 : Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.black87 : Colors.grey[200]!,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : Colors.grey[600],
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                color: isSelected ? Colors.white : Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInput(
-    TextEditingController ctrl,
-    String hint,
-    IconData icon, {
-    TextInputType? keyboardType,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: keyboardType,
-        style: GoogleFonts.inter(color: Colors.black87, fontSize: 14),
-        textCapitalization: TextCapitalization.sentences,
-        decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: Colors.grey[400], size: 20),
-          hintText: hint,
-          hintStyle: GoogleFonts.inter(
-            color: Colors.grey[400],
-            fontWeight: FontWeight.w500,
-          ),
-          filled: true,
-          fillColor: Colors.grey[50],
-          contentPadding: const EdgeInsets.symmetric(vertical: 18),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: _accentPink.withOpacity(0.5)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGlassAddressTile({
-    required String address,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required VoidCallback onDelete,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.pinkAccent.withOpacity(0.2)
-              : Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: isSelected
-                ? Colors.pinkAccent.withOpacity(0.5)
-                : Colors.transparent,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.check_circle : Icons.history,
-              color: isSelected ? Colors.pinkAccent : Colors.white38,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                address,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  color: isSelected ? Colors.white : Colors.white70,
-                  fontSize: 13,
-                  height: 1.3,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ),
-            IconButton(
-              constraints: const BoxConstraints(),
-              padding: const EdgeInsets.only(left: 8),
-              icon: const Icon(
-                Icons.close_rounded,
-                color: Colors.white24,
-                size: 18,
-              ),
-              onPressed: onDelete,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      splashColor: color.withOpacity(0.1),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              style: GoogleFonts.montserrat(
-                color: color.withOpacity(0.8),
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _initController(bool isMobile) {
-    double targetFraction = isMobile ? 0.8 : 0.6;
-    if (_pageController == null ||
-        _pageController!.viewportFraction != targetFraction) {
-      _pageController?.dispose();
-      _pageController = PageController(
-        viewportFraction: targetFraction,
-        initialPage: _initialPage,
-      );
-    }
-  }
-
-  void _startAutoSlider() {
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (_pageController != null && _pageController!.hasClients) {
-        _pageController!.nextPage(
-          duration: const Duration(milliseconds: 1200),
-          curve: Curves.easeInOutQuint,
-        );
-      }
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) _triggerBounceCycle();
     });
   }
 
-  Future<void> _loadUserData() async {
-    final User? user = FirebaseAuth.instance.currentUser;
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-
-    String loadedName = prefs.getString('username') ?? "User";
-
-    String savedLocalAddress = prefs.getString('userAddress') ?? "";
-
-    if (mounted) {
-      setState(() {
-        userName = user == null ? "Guest" : loadedName;
-        userAddress = savedLocalAddress.isNotEmpty
-            ? savedLocalAddress
-            : "Locating...";
-      });
+  Future<void> _triggerBounceCycle() async {
+    bool isDraggingVertically = _draggedCardIndex != null;
+    bool isSlidingHorizontally = false;
+    
+    if (_pageController?.hasClients == true) {
+      isSlidingHorizontally = _pageController?.position.isScrollingNotifier.value ?? false;
     }
 
-    bool foundSavedAddress = false;
-
-    if (user != null) {
-      try {
-        final querySnapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('addresses')
-            .orderBy('createdAt', descending: true)
-            .limit(1)
-            .get();
-
-        if (querySnapshot.docs.isNotEmpty) {
-          final data = querySnapshot.docs.first.data();
-          String area = data['area'] ?? '';
-          if (mounted) {
-            setState(() {
-              userAddress = area.isNotEmpty
-                  ? area
-                  : (data['fullAddress'] ?? "Select Location");
-              _manualAddressController.text = userAddress;
-            });
-          }
-          foundSavedAddress = true;
-        }
-      } catch (e) {
-        debugPrint("Error fetching address: $e");
+    if (!isDraggingVertically && !isSlidingHorizontally && _bounceController != null) {
+      if (!_bounceController!.isAnimating) {
+        await _bounceController!.forward(); 
+        await Future.delayed(const Duration(milliseconds: 150)); 
+        await _bounceController!.reverse(); 
       }
-    }
-
-    if (!foundSavedAddress) {
-      await _fetchLiveLocationForAppBar();
-    }
-  }
-
-  Future<void> _fetchLiveLocationForAppBar() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (mounted) setState(() => userAddress = "Select Location");
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (mounted) setState(() => userAddress = "Select Location");
-          return;
-        }
-      }
-      if (permission == LocationPermission.deniedForever) {
-        if (mounted) setState(() => userAddress = "Select Location");
-        return;
-      }
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      if (!kIsWeb) {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks[0];
-
-          String finalAreaName = "";
-          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-            finalAreaName = place.subLocality!;
-          } else if (place.locality != null && place.locality!.isNotEmpty) {
-            finalAreaName = place.locality!;
-          } else if (place.administrativeArea != null &&
-              place.administrativeArea!.isNotEmpty) {
-            finalAreaName = place.administrativeArea!;
-          }
-
-          String pinCode = place.postalCode ?? "";
-
-          String displayLocation = finalAreaName;
-          if (displayLocation.isNotEmpty && pinCode.isNotEmpty) {
-            displayLocation = "$displayLocation, $pinCode";
-          } else if (displayLocation.isEmpty && pinCode.isNotEmpty) {
-            displayLocation = "PIN: $pinCode";
-          }
-
-          if (displayLocation.isNotEmpty && mounted) {
-            setState(() {
-              userAddress = displayLocation;
-              _manualAddressController.text = displayLocation;
-            });
-
-            final prefs = await SharedPreferences.getInstance();
-            prefs.setString('userAddress', displayLocation);
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint("Auto-location failed: $e");
-      if (mounted) setState(() => userAddress = "Select Location");
     }
   }
 
@@ -1646,21 +115,46 @@ class _SecondpageState extends State<Secondpage> {
     _timer?.cancel();
     _pageController?.dispose();
     _manualAddressController.dispose();
+    _bounceController?.dispose();
     super.dispose();
+  }
+
+  Future<void> _navigateFromCard(int index, String heroTag) async {
+    Widget targetPage;
+    try {
+      switch (cakeNames[index]) {
+        case "Cakes":
+          targetPage = Cakepage(heroTag: heroTag);
+          break;
+        case "Cup Cakes":
+          targetPage = Cupcakepage(heroTag: heroTag);
+          break;
+        case "Gifts":
+          targetPage = Giftpage(heroTag: heroTag);
+          break;
+        default:
+          targetPage = Giftpage(heroTag: heroTag);
+      }
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => targetPage),
+      );
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint("Navigation Error: $e");
+    }
   }
 
   int _getRealIndex(int index) {
     return index % cakeImages.length;
   }
 
-  BoxDecoration _glassDecoration() {
-    return BoxDecoration(
-      color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.1),
-      borderRadius: BorderRadius.circular(15),
-      border: Border.all(
-        color: const Color.fromARGB(255, 0, 0, 0).withOpacity(0.0),
-        width: 1,
-      ),
+  Widget _scaledUI(Widget child, double scale) {
+    return AnimatedScale(
+      scale: scale,
+      duration: Duration(milliseconds: _isAnimatingRelease ? 800 : 0),
+      curve: Curves.easeOutCubic,
+      child: child,
     );
   }
 
@@ -1670,6 +164,11 @@ class _SecondpageState extends State<Secondpage> {
     final bool isMobile = size.width < 800;
 
     _initController(isMobile);
+
+    double pageScale = 1.0;
+    if (_draggedCardIndex != null && _dragOffset < 0) {
+      pageScale = (1.0 - (_dragOffset.abs() / 2500)).clamp(0.85, 1.0);
+    }
 
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
@@ -1681,17 +180,19 @@ class _SecondpageState extends State<Secondpage> {
         String busyMessage = "We are currently busy baking delicious treats!";
         DateTime? resumeTime;
 
-        if (statusSnapshot.hasData && statusSnapshot.data!.exists) {
-          final data = statusSnapshot.data!.data() as Map<String, dynamic>;
-          bool isOpen = data['isOpen'] ?? true;
-          resumeTime = data['resumeAt'] != null
-              ? (data['resumeAt'] as Timestamp).toDate()
-              : null;
+        if (statusSnapshot.hasData && statusSnapshot.data?.exists == true) {
+          final data = statusSnapshot.data?.data() as Map<String, dynamic>?;
+          if (data != null) {
+            bool isOpen = data['isOpen'] ?? true;
+            resumeTime = data['resumeAt'] != null
+                ? (data['resumeAt'] as Timestamp).toDate()
+                : null;
 
-          if (!isOpen &&
-              (resumeTime == null || resumeTime.isAfter(DateTime.now()))) {
-            isStoreClosed = true;
-            busyMessage = data['message'] ?? busyMessage;
+            if (!isOpen &&
+                (resumeTime == null || resumeTime.isAfter(DateTime.now()))) {
+              isStoreClosed = true;
+              busyMessage = data['message'] ?? busyMessage;
+            }
           }
         }
 
@@ -1705,27 +206,31 @@ class _SecondpageState extends State<Secondpage> {
                 child: Stack(
                   alignment: Alignment.topCenter,
                   children: [
-                    _buildBackground(size),
+                    _buildBackground(size), 
                     SafeArea(
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 10),
-                          _buildGlassAppBar(isMobile),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: Column(
-                                children: [
-                                  const SizedBox(height: 40),
-                                  _buildHeaderText(),
-                                  const SizedBox(height: 55),
-                                  _buildSliderSection(isMobile, size),
-                                  const SizedBox(height: 50),
-                                  _buildFooterText(),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: SingleChildScrollView(
+                        clipBehavior: Clip.none, 
+                        physics: _isHoldingSlider || _draggedCardIndex != null 
+                            ? const NeverScrollableScrollPhysics() 
+                            : const BouncingScrollPhysics(),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 10),
+                            _scaledUI(_buildGlassAppBar(isMobile), pageScale),
+                            
+                            const SizedBox(height: 20), 
+                            _scaledUI(_buildHeaderText(isMobile), pageScale),
+                            const SizedBox(height: 30), 
+                            
+                            _buildSliderSection(isMobile, size, pageScale),
+                            
+                            const SizedBox(height: 0),
+                            _scaledUI(_buildPageIndicator(), pageScale),
+                            const SizedBox(height: 35),
+                            _scaledUI(_buildFooterText(isMobile), pageScale),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -1733,21 +238,37 @@ class _SecondpageState extends State<Secondpage> {
               ),
 
               if (!isStoreClosed)
-                const Positioned(
+                Positioned(
                   bottom: 20,
-                  left: 20,
-                  right: 20,
-                  child: LiveOrderTracker(),
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _scaledUI(const LiveOrderTracker(), pageScale),
+                      ),
+                    ),
+                  ),
                 ),
 
               if (isStoreClosed) _buildBusyOverlay(busyMessage, resumeTime),
 
               if (isStoreClosed)
-                const Positioned(
+                Positioned(
                   bottom: 40,
-                  left: 20,
-                  right: 20,
-                  child: LiveOrderTracker(),
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _scaledUI(const LiveOrderTracker(), pageScale),
+                      ),
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -1756,189 +277,270 @@ class _SecondpageState extends State<Secondpage> {
     );
   }
 
-  Widget _buildBusyOverlay(String message, DateTime? resumeTime) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: Container(
-          color: Colors.black.withOpacity(0.85),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(25),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _accentPink.withOpacity(0.1),
-                      border: Border.all(
-                        color: _accentPink.withOpacity(0.3),
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.restaurant_menu_rounded,
-                      color: _accentPink,
-                      size: 50,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  Text(
-                    "WE ARE BUSY BAKING",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.oswald(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                      color: Colors.white60,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 50),
-
-                  if (resumeTime != null) ...[
-                    Text(
-                      "OPENING AT",
-                      style: GoogleFonts.montserrat(
-                        color: _accentPink,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      DateFormat('hh:mm a').format(resumeTime),
-                      style: GoogleFonts.montserrat(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ] else ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(50),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Text(
-                        "TEMPORARILY CLOSED",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 80),
-
-                  Opacity(
-                    opacity: 0.5,
-                    child: Text(
-                      "BUTTER HEARTS CAKES",
-                      style: GoogleFonts.oswald(
-                        color: Colors.white,
-                        fontSize: 12,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+  Widget _buildPageIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(cakeImages.length, (index) {
+        int realIndex = _getRealIndex(_currentIndex);
+        bool isActive = realIndex == index;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          height: 6,
+          width: isActive ? 24 : 8,
+          decoration: BoxDecoration(
+            color: isActive ? _accentPink : Colors.white24,
+            borderRadius: BorderRadius.circular(10),
           ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildSliderSection(bool isMobile, Size size, double globalPageScale) {
+    double height = isMobile ? 400 : 380.0;
+    double width = size.width;
+
+    return SizedBox(
+      height: height,
+      width: width,
+      child: Listener(
+        onPointerDown: (_) {
+          if (!_isHoldingSlider) setState(() => _isHoldingSlider = true);
+        },
+        onPointerUp: (_) {
+          if (_isHoldingSlider) setState(() => _isHoldingSlider = false);
+        },
+        onPointerCancel: (_) {
+          if (_isHoldingSlider) setState(() => _isHoldingSlider = false);
+        },
+        child: PageView.builder(
+          clipBehavior: Clip.none, 
+          controller: _pageController,
+          physics: const BouncingScrollPhysics(),
+          onPageChanged: (index) {
+            setState(() => _currentIndex = index);
+            
+            if (index % 2 == 0) {
+              Future.delayed(const Duration(milliseconds: 800), () {
+                if (mounted && _currentIndex == index) {
+                  _triggerBounceCycle();
+                }
+              });
+            }
+          },
+          itemBuilder: (context, index) {
+            final realIndex = _getRealIndex(index);
+            bool isBeingDragged = _draggedCardIndex == realIndex;
+
+            if (_pageController == null) return const SizedBox.shrink();
+
+            return AnimatedBuilder(
+              animation: _pageController ?? const AlwaysStoppedAnimation(0),
+              builder: (context, child) {
+                double carouselScale = 1.0;
+                
+                if (_pageController?.hasClients == true && _pageController?.position.haveDimensions == true) {
+                  double currentPage = _pageController?.page ?? _currentIndex.toDouble();
+                  carouselScale = currentPage - index;
+                  carouselScale = (1 - (carouselScale.abs() * 0.15)).clamp(0.8, 1.0);
+                }
+                
+                double finalScale = isBeingDragged ? carouselScale : (carouselScale * globalPageScale);
+
+                return Center(
+                  child: AnimatedScale(
+                    scale: finalScale,
+                    duration: Duration(milliseconds: _isAnimatingRelease ? 800 : 0),
+                    curve: Curves.easeOutCubic,
+                    child: child,
+                  ),
+                );
+              },
+              child: _buildSliderCard(realIndex, index, isMobile),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildFooterText() {
-    return Column(
-      children: [
-        Text(
-          "\"Celebrate every moment \n with Butter Hearts Cakes.\"",
-          textAlign: TextAlign.center,
-          style: GoogleFonts.playfairDisplay(
-            color: Colors.white70,
-            fontSize: 14,
-          ),
-        ),
-      ],
+  Widget _buildSliderCard(int realIndex, int actualIndex, bool isMobile) {
+    return AnimatedBuilder(
+      animation: _bounceController!,
+      builder: (context, child) {
+        bool isBeingDragged = _draggedCardIndex == realIndex;
+        double bounceOffset = 0.0; 
+        double currentDrag = isBeingDragged ? _dragOffset : 0.0;
+        double totalOffset = currentDrag + bounceOffset;
+
+        return Stack(
+          alignment: Alignment.bottomCenter,
+          clipBehavior: Clip.none,
+          children: [
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () async {
+                  await _navigateFromCard(realIndex, 'featured_cake_$actualIndex');
+                },
+                onVerticalDragStart: (details) {
+                  setState(() {
+                    _draggedCardIndex = realIndex;
+                    _dragOffset = 0.0;
+                    _isAnimatingRelease = false;
+                  });
+                },
+                onVerticalDragUpdate: (details) {
+                  if (_draggedCardIndex == realIndex) {
+                    setState(() {
+                      _dragOffset += details.primaryDelta ?? 0;
+                      if (_dragOffset > 0) _dragOffset = 0; 
+                    });
+                  }
+                },
+                onVerticalDragEnd: (details) async {
+                  setState(() {
+                    _isAnimatingRelease = true; 
+                  });
+
+                  if (_dragOffset < -120 || (details.primaryVelocity != null && details.primaryVelocity! < -300)) {
+                    setState(() {
+                      _dragOffset = -MediaQuery.of(context).size.height;
+                    });
+
+                    await Future.delayed(const Duration(milliseconds: 300)); 
+                    await _navigateFromCard(realIndex, 'featured_cake_$actualIndex');
+
+                    if (mounted) {
+                      setState(() {
+                        _dragOffset = 0.0;
+                        _draggedCardIndex = null;
+                        _isAnimatingRelease = false;
+                      });
+                    }
+                  } else {
+                    setState(() {
+                      _dragOffset = 0.0;
+                      _draggedCardIndex = null;
+                    });
+                  }
+                },
+                child: AnimatedContainer(
+                  height: isMobile ? 350 : 500,
+                  duration: Duration(milliseconds: _isAnimatingRelease ? 300 : 0), 
+                  curve: Curves.easeOutCubic,
+                  transform: Matrix4.translationValues(0, totalOffset, 0),
+                  margin: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 15),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Hero(
+                          tag: 'featured_cake_$actualIndex',
+                          child: Image.asset(cakeImages[realIndex], fit: BoxFit.cover),
+                        ),
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.2),
+                                  Colors.black.withOpacity(0.85),
+                                ],
+                                stops: const [0.4, 0.7, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.all(isMobile ? 25.0 : 20.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                cakeNames[realIndex].toUpperCase(),
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.playfairDisplay(
+                                  color: Colors.white,
+                                  fontSize: isMobile ? 24 : 20,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 0.0),
+                              Container(
+                                width: 30.0,
+                                height: 3.0,
+                                decoration: BoxDecoration(
+                                  color: _accentPink,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _accentPink.withOpacity(0.5),
+                                      blurRadius: 10,
+                                    )
+                                  ]
+                                ),
+                              ),
+                              const SizedBox(height: 10), 
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildBackground(Size size) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Image.asset(
-            "assets/aaaa.jpg",
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                Container(color: Colors.black),
-          ),
-        ),
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.5),
-                  Colors.black.withOpacity(0.0),
-                  Colors.black.withOpacity(0.0),
-                  Colors.black.withOpacity(0.0),
-                ],
-                stops: const [0.0, 0.5, 0.85, 1.0],
-              ),
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
-            child: Container(
-              color: const Color.fromARGB(255, 163, 163, 163).withOpacity(0.1),
-            ),
-          ),
-        ),
-      ],
-    );
+  void _initController(bool isMobile) {
+    double targetFraction = isMobile ? 0.78 : 0.33; 
+    if (_pageController == null ||
+        _pageController?.viewportFraction != targetFraction) {
+      _pageController?.dispose();
+      _pageController = PageController(
+        viewportFraction: targetFraction,
+        initialPage: _initialPage,
+      );
+    }
+  }
+
+  void _startAutoSlider() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_pageController?.hasClients == true) {
+        _pageController?.nextPage(
+          duration: const Duration(milliseconds: 1200),
+          curve: Curves.easeInOutQuint,
+        );
+      }
+    });
   }
 
   Widget _buildGlassAppBar(bool isMobile) {
     final double targetFontSize = _isProfileExpanded
-        ? (isMobile ? 12.0 : 16.0)
-        : (isMobile ? 15.0 : 24.0);
+        ? (isMobile ? 12.0 : 13.0)
+        : (isMobile ? 15.0 : 18.0);
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1200),
+        constraints: const BoxConstraints(maxWidth: 1000),
         child: Container(
           margin: EdgeInsets.symmetric(
             horizontal: isMobile ? 16 : 30,
-            vertical: isMobile ? 10 : 20,
+            vertical: isMobile ? 10 : 15,
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
@@ -1957,7 +559,7 @@ class _SecondpageState extends State<Secondpage> {
               child: Container(
                 padding: EdgeInsets.symmetric(
                   horizontal: isMobile ? 16 : 24,
-                  vertical: isMobile ? 10 : 16,
+                  vertical: isMobile ? 10 : 8, 
                 ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -1984,7 +586,6 @@ class _SecondpageState extends State<Secondpage> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
-
                             child: AnimatedDefaultTextStyle(
                               duration: const Duration(milliseconds: 300),
                               curve: Curves.easeOutBack,
@@ -2002,7 +603,6 @@ class _SecondpageState extends State<Secondpage> {
                               ),
                               child: const Text(
                                 "BUTTER HEARTS CAKES",
-
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -2017,7 +617,6 @@ class _SecondpageState extends State<Secondpage> {
                         ],
                       ),
                     ),
-
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -2025,9 +624,7 @@ class _SecondpageState extends State<Secondpage> {
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeOutBack,
                           child: SizedBox(
-                            width: (isMobile && _isProfileExpanded)
-                                ? 0.0
-                                : null,
+                            width: (isMobile && _isProfileExpanded) ? 0.0 : null,
                             child: (isMobile && _isProfileExpanded)
                                 ? const SizedBox.shrink()
                                 : Row(
@@ -2039,7 +636,6 @@ class _SecondpageState extends State<Secondpage> {
                                   ),
                           ),
                         ),
-
                         _buildAnimatedProfileButton(isMobile),
                       ],
                     ),
@@ -2076,9 +672,7 @@ class _SecondpageState extends State<Secondpage> {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  userAddress == "Select Location"
-                      ? "Set Location"
-                      : userAddress,
+                  userAddress == "Select Location" ? "Set Location" : userAddress,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
@@ -2109,14 +703,8 @@ class _SecondpageState extends State<Secondpage> {
       count = 0;
     }
 
-    final double iconSize = _isProfileExpanded
-        ? (isMobile ? 18.0 : 22.0)
-        : (isMobile ? 18.0 : 20.0);
-
-    final double padding = _isProfileExpanded
-        ? (isMobile ? 6.0 : 10.0)
-        : (isMobile ? 10.0 : 14.0);
-
+    final double iconSize = _isProfileExpanded ? (isMobile ? 18.0 : 22.0) : (isMobile ? 18.0 : 20.0);
+    final double padding = _isProfileExpanded ? (isMobile ? 6.0 : 10.0) : (isMobile ? 10.0 : 14.0);
     final double badgeSize = isMobile ? 16.0 : 19.0;
     final double fontSize = isMobile ? 9.0 : 11.0;
 
@@ -2161,12 +749,7 @@ class _SecondpageState extends State<Secondpage> {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   shape: BoxShape.circle,
-                  border: isMobile
-                      ? null
-                      : Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                          width: 1,
-                        ),
+                  border: isMobile ? null : Border.all(color: Colors.white.withOpacity(0.1), width: 1),
                 ),
                 child: Icon(
                   Icons.shopping_bag_outlined,
@@ -2210,383 +793,646 @@ class _SecondpageState extends State<Secondpage> {
     );
   }
 
-  Widget _profileDropdown(bool isMobile) {
-    return Theme(
-      data: Theme.of(context).copyWith(
-        popupMenuTheme: PopupMenuThemeData(
-          color: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Colors.white10),
-          ),
-        ),
-      ),
-      child: PopupMenuButton<String>(
-        elevation: 20,
-        offset: const Offset(0, 50),
-        tooltip: "Account",
-        child: Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white24, width: 1.5),
-          ),
-          child: const CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.white10,
-            child: Icon(Icons.person_rounded, color: Colors.white, size: 18),
-          ),
-        ),
-        onSelected: (value) async {
-          final User? user = FirebaseAuth.instance.currentUser;
-          if (value == 'login') {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => Loginpage2()),
-            );
-            _loadUserData();
-          } else if (value == 'profile') {
+  Widget _buildAnimatedProfileButton(bool isMobile) {
+    final User? user = FirebaseAuth.instance.currentUser;
+    final bool isLoggedIn = user != null;
+
+    final double height = _isProfileExpanded ? (isMobile ? 35.0 : 42.0) : (isMobile ? 35.0 : 45.0);
+    final double collapsedWidth = height;
+    final double expandedWidth = isMobile ? 120.0 : 160.0;
+    final double avatarSize = _isProfileExpanded ? (isMobile ? 24.0 : 30.0) : (isMobile ? 25.0 : 32.0);
+    final double iconSize = _isProfileExpanded ? (isMobile ? 16.0 : 20.0) : (isMobile ? 20.0 : 22.0);
+    final double fontSize = isMobile ? 10.0 : 12.0;
+    final double paddingGap = isMobile ? 8.0 : 12.0;
+
+    double containerWidth = _isProfileExpanded ? expandedWidth : collapsedWidth;
+
+    return GestureDetector(
+      onTap: () async {
+        if (!_isProfileExpanded) {
+          setState(() => _isProfileExpanded = true);
+          Future.delayed(const Duration(seconds: 4), () {
+            if (mounted && _isProfileExpanded) {
+              setState(() => _isProfileExpanded = false);
+            }
+          });
+        } else {
+          if (isLoggedIn) {
             await Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const Profilepage2()),
             );
             _loadUserData();
-          } else if (value == 'logout') {
-            await FirebaseAuth.instance.signOut();
-            final SharedPreferences prefs =
-                await SharedPreferences.getInstance();
-            await prefs.remove('username');
-
-            setState(() {
-              userName = "Guest";
-              userAddress = "Select Location";
-            });
-
-            try {
-              cake.cartList.clear();
-            } catch (e) {}
-
-            _showSnackBar("Logged out successfully");
-          }
-        },
-        itemBuilder: (context) {
-          final User? user = FirebaseAuth.instance.currentUser;
-          return [
-            if (user == null)
-              _buildPopupItem(
-                'login',
-                Icons.login_rounded,
-                "Login",
-                Colors.white,
-              ),
-
-            if (user != null) ...[
-              PopupMenuItem(
-                enabled: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      userName,
-                      style: GoogleFonts.montserrat(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      user.email ?? "",
-                      style: GoogleFonts.inter(
-                        color: Colors.white54,
-                        fontSize: 10,
-                      ),
-                    ),
-                    const Divider(color: Colors.white12, height: 20),
-                  ],
-                ),
-              ),
-              _buildPopupItem(
-                'profile',
-                Icons.person_outline_rounded,
-                "My Profile",
-                Colors.white,
-              ),
-              _buildPopupItem(
-                'logout',
-                Icons.logout_rounded,
-                "Logout",
-                _accentPink,
-              ),
-            ],
-          ];
-        },
-      ),
-    );
-  }
-
-  PopupMenuItem<String> _buildPopupItem(
-    String value,
-    IconData icon,
-    String text,
-    Color color,
-  ) {
-    return PopupMenuItem(
-      value: value,
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
-          Text(
-            text,
-            style: GoogleFonts.inter(
-              color: color,
-              fontWeight: FontWeight.w500,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationWidget(bool isMobile) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          final user = FirebaseAuth.instance.currentUser;
-          if (user == null) {
-            _showSnackBar("Please login to set your delivery location");
           } else {
-            _showLocationDetailsDialog();
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const Loginpage2()),
+            );
+            _loadUserData();
           }
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(30),
+          if (mounted) setState(() => _isProfileExpanded = false);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutBack,
+        width: containerWidth,
+        height: height,
+        decoration: BoxDecoration(
+          color: _isProfileExpanded
+              ? (isLoggedIn ? Colors.white.withOpacity(0.2) : const Color(0xFFDA008A).withOpacity(0.8))
+              : Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(
+            color: _isProfileExpanded ? Colors.white54 : Colors.white24,
+            width: 1.5,
           ),
-          padding: const EdgeInsets.all(5),
-          child: Row(
-            children: [
-              const CircleAvatar(
-                radius: 14,
-                backgroundColor: Colors.black45,
-                child: Icon(
-                  Icons.location_on_outlined,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-              if (!isMobile) ...[
-                const SizedBox(width: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 100),
-                  child: Text(
-                    userAddress,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.montserrat(
-                      color: Colors.white,
-                      fontSize: 11,
-                    ),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          child: Container(
+            constraints: BoxConstraints(minWidth: containerWidth),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: const BoxDecoration(shape: BoxShape.circle),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.transparent,
+                    backgroundImage: (isLoggedIn && user?.photoURL != null) ? NetworkImage(user?.photoURL ?? '') : null,
+                    child: (isLoggedIn && user?.photoURL != null)
+                        ? null
+                        : Icon(
+                            isLoggedIn ? Icons.person_2_sharp : Icons.person_2_outlined,
+                            color: Colors.white,
+                            size: iconSize,
+                          ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                if (_isProfileExpanded) ...[
+                  SizedBox(width: paddingGap),
+                  _buildLiveUserNameText(fontSize, Colors.white),
+                  SizedBox(width: paddingGap),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildHeaderText() {
+  Widget _buildLiveUserNameText(double fontSize, Color color) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Text(
+        "LOGIN",
+        style: GoogleFonts.montserrat(fontSize: fontSize, color: color, fontWeight: FontWeight.bold),
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      builder: (context, snapshot) {
+        String nameToShow = "BAKER";
+        if (snapshot.hasData && snapshot.data?.exists == true) {
+          final data = snapshot.data?.data() as Map<String, dynamic>?;
+          if (data != null && data['username'] != null && data['username'].toString().isNotEmpty) {
+            nameToShow = data['username'];
+          }
+        } else if (user.displayName != null) {
+          nameToShow = user.displayName ?? "BAKER";
+        }
+        nameToShow = nameToShow.split(' ')[0].toUpperCase();
+        return Text(
+          nameToShow,
+          style: GoogleFonts.montserrat(color: color, fontWeight: FontWeight.bold, fontSize: fontSize),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeaderText(bool isMobile) {
     return Column(
       children: [
         const SizedBox(height: 0),
         Text(
           "Baked with Love,",
           style: GoogleFonts.playfairDisplay(
-            fontSize: 16,
-            color: Colors.white70,
-            fontStyle: FontStyle.italic,
+            fontSize: isMobile ? 16 : 18, 
+            color: Colors.white70, 
+            fontStyle: FontStyle.italic
           ),
         ),
         Text(
           "Served with Heart",
           textAlign: TextAlign.center,
           style: GoogleFonts.playfairDisplay(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+            fontSize: isMobile ? 22 : 32, 
+            fontWeight: FontWeight.bold, 
+            color: Colors.white, 
+            letterSpacing: 1
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSliderSection(bool isMobile, Size size) {
-    double height = isMobile ? 350 : 500;
-    double width = isMobile ? size.width : 900;
-
-    return SizedBox(
-      height: height,
-      width: width,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
-            },
-            itemBuilder: (context, index) {
-              final realIndex = _getRealIndex(index);
-              return AnimatedBuilder(
-                animation: _pageController!,
-                builder: (context, child) {
-                  double value = 1.0;
-                  if (_pageController!.position.haveDimensions) {
-                    value = _pageController!.page! - index;
-                    value = (1 - (value.abs() * 0.2)).clamp(0.85, 1.0);
-                  }
-                  return Center(
-                    child: Transform.scale(scale: value, child: child),
-                  );
-                },
-                child: _buildSliderCard(realIndex, isMobile),
-              );
-            },
+  Widget _buildBackground(Size size) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset(
+            "assets/aaaa.jpg",
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(color: Colors.black),
           ),
-        ],
+        ),
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.6),
+                  Colors.black.withOpacity(0.2),
+                  Colors.black.withOpacity(0.4),
+                  Colors.black.withOpacity(0.8),
+                ],
+                stops: const [0.0, 0.4, 0.75, 1.0],
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+            child: Container(
+              color: const Color.fromARGB(255, 163, 163, 163).withOpacity(0.05),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterText(bool isMobile) {
+    return Column(
+      children: [
+        Text(
+          "\"Celebrate every moment \n with Butter Hearts Cakes.\"",
+          textAlign: TextAlign.center,
+          style: GoogleFonts.playfairDisplay(
+            color: Colors.white60, 
+            fontSize: isMobile ? 14 : 15, 
+            height: 1.5
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBusyOverlay(String message, DateTime? resumeTime) {
+    return SizedBox(
+      width: double.infinity,
+      height: double.infinity,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          color: Colors.black.withOpacity(0.85),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(25),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _accentPink.withOpacity(0.1),
+                      border: Border.all(color: _accentPink.withOpacity(0.3), width: 2),
+                    ),
+                    child: Icon(Icons.restaurant_menu_rounded, color: _accentPink, size: 50),
+                  ),
+                  const SizedBox(height: 40),
+                  Text(
+                    "WE ARE BUSY BAKING",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.oswald(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 2),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(color: Colors.white60, fontSize: 14, height: 1.5),
+                  ),
+                  const SizedBox(height: 50),
+                  if (resumeTime != null) ...[
+                    Text("OPENING AT", style: GoogleFonts.montserrat(color: _accentPink, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 3)),
+                    const SizedBox(height: 10),
+                    Text(DateFormat('hh:mm a').format(resumeTime), style: GoogleFonts.montserrat(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(50), border: Border.all(color: Colors.white12)),
+                      child: Text("TEMPORARILY CLOSED", style: GoogleFonts.inter(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                    ),
+                  ],
+                  const SizedBox(height: 80),
+                  Opacity(
+                    opacity: 0.5,
+                    child: Text("BUTTER HEARTS CAKES", style: GoogleFonts.oswald(color: Colors.white, fontSize: 12, letterSpacing: 4)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildSliderCard(int index, bool isMobile) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 10),
-        width: isMobile ? double.infinity : 600,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.0),
-              blurRadius: 25,
-              offset: const Offset(0, 15),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: Stack(
-            fit: StackFit.expand,
+  Future<void> _loadUserData() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+
+    String loadedName = prefs.getString('username') ?? "User";
+    String savedLocalAddress = prefs.getString('userAddress') ?? "";
+
+    if (mounted) {
+      setState(() {
+        userName = user == null ? "Guest" : loadedName;
+        userAddress = savedLocalAddress.isNotEmpty ? savedLocalAddress : "Locating...";
+      });
+    }
+
+    bool foundSavedAddress = false;
+
+    if (user != null) {
+      try {
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('addresses')
+            .orderBy('createdAt', descending: true)
+            .limit(1)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          final data = querySnapshot.docs.first.data();
+          String area = data['area'] ?? '';
+          if (mounted) {
+            setState(() {
+              userAddress = area.isNotEmpty ? area : (data['fullAddress'] ?? "Select Location");
+              _manualAddressController.text = userAddress;
+            });
+          }
+          foundSavedAddress = true;
+        }
+      } catch (e) {
+        debugPrint("Error fetching address: $e");
+      }
+    }
+
+    if (!foundSavedAddress) {
+      await _fetchLiveLocationForAppBar();
+    }
+  }
+
+  Future<void> _fetchLiveLocationForAppBar() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) setState(() => userAddress = "Select Location");
+        return;
+      }
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) setState(() => userAddress = "Select Location");
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => userAddress = "Select Location");
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+
+      if (!kIsWeb) {
+        List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+        if (placemarks.isNotEmpty) {
+          Placemark place = placemarks[0];
+          String finalAreaName = "";
+          if (place.subLocality?.isNotEmpty == true) {
+            finalAreaName = place.subLocality ?? "";
+          } else if (place.locality?.isNotEmpty == true) {
+            finalAreaName = place.locality ?? "";
+          } else if (place.administrativeArea?.isNotEmpty == true) {
+            finalAreaName = place.administrativeArea ?? "";
+          }
+          
+          String pinCode = place.postalCode ?? "";
+          String displayLocation = finalAreaName;
+          if (displayLocation.isNotEmpty && pinCode.isNotEmpty) {
+            displayLocation = "$displayLocation, $pinCode";
+          } else if (displayLocation.isEmpty && pinCode.isNotEmpty) {
+            displayLocation = "PIN: $pinCode";
+          }
+
+          if (displayLocation.isNotEmpty && mounted) {
+            setState(() {
+              userAddress = displayLocation;
+              _manualAddressController.text = displayLocation;
+            });
+            final prefs = await SharedPreferences.getInstance();
+            prefs.setString('userAddress', displayLocation);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Auto-location failed: $e");
+      if (mounted) setState(() => userAddress = "Select Location");
+    }
+  }
+
+  void _showLocationDetailsDialog() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showSnackBar("Please login to manage addresses");
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Image.asset(cakeImages[index], fit: BoxFit.cover),
-              Positioned.fill(
+              Center(
                 child: Container(
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        const Color.fromARGB(255, 0, 0, 0).withOpacity(0.0),
-                        Colors.black.withOpacity(0.1),
-                        Colors.black.withOpacity(0.0),
-                      ],
-                      stops: const [0.5, 0.7, 1.0],
-                    ),
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(25.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      cakeNames[index].toUpperCase(),
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.playfairDisplay(
-                        color: Colors.white,
-                        fontSize: isMobile ? 22 : 28,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    const SizedBox(height: 8.0),
-                    Container(
-                      width: 50.0,
-                      height: 3.0,
-                      decoration: BoxDecoration(
-                        color: _accentPink,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-                    _buildExploreButton(index),
-                    const SizedBox(height: 10),
-                  ],
+              const SizedBox(height: 25),
+              Text(
+                "SAVED ADDRESSES",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey[500],
+                  letterSpacing: 1,
                 ),
               ),
+              const SizedBox(height: 15),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .collection('addresses')
+                      .orderBy('createdAt', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFFF2E74),
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData || (snapshot.data?.docs.isEmpty ?? true)) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: Text(
+                            "No saved addresses yet.",
+                            style: GoogleFonts.inter(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final docs = snapshot.data?.docs ?? [];
+                    return ListView.separated(
+                      padding: EdgeInsets.zero,
+                      itemCount: docs.length,
+                      separatorBuilder: (context, index) => const Divider(height: 30),
+                      itemBuilder: (context, index) {
+                        final doc = docs[index];
+                        final data = (doc.data() as Map<String, dynamic>?) ?? {};
+
+                        String label = data['label'] ?? 'Other';
+                        IconData labelIcon = Icons.location_on_rounded;
+                        if (label == 'Home') labelIcon = Icons.home_rounded;
+                        if (label == 'Work') labelIcon = Icons.work_rounded;
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: () async {
+                                  Navigator.pop(context);
+                                  setState(() {
+                                    String area = data['area'] ?? '';
+                                    userAddress = area.isNotEmpty ? area : (data['fullAddress'] ?? "");
+                                    _manualAddressController.text = userAddress;
+                                  });
+                                  final prefs = await SharedPreferences.getInstance();
+                                  prefs.setString('userAddress', userAddress);
+                                },
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Icon(labelIcon, color: Colors.black87),
+                                    ),
+                                    const SizedBox(width: 15),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black87,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  label.toUpperCase(),
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  data['receiverName'] ?? 'Name',
+                                                  style: GoogleFonts.inter(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            data['fullAddress'] ?? '',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              color: Colors.grey[700],
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.delete_outline_rounded, color: Colors.red[400], size: 22),
+                              onPressed: () async {
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(user.uid)
+                                    .collection('addresses')
+                                    .doc(doc?.id ?? '')
+                                    .delete();
+                                _loadUserData();
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const Divider(height: 40),
+              Text(
+                "ADD NEW ADDRESS",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey[500],
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildLocationActionBtn(
+                      "Current\nLocation",
+                      Icons.my_location_rounded,
+                      Colors.blueAccent,
+                      () {
+                        Navigator.pop(context);
+                        _fetchLiveLocationForAppBar(); 
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildLocationActionBtn(
+                      "Select on\nMap",
+                      Icons.map_outlined,
+                      Colors.orangeAccent,
+                      () async {
+                        Navigator.pop(context);
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LocationPage()),
+                        );
+                        if (result != null && result is Map) {
+                          setState(() {
+                            userAddress = result['address']?.split(',').last.trim() ?? "Location Set";
+                            _manualAddressController.text = userAddress;
+                          });
+                          final prefs = await SharedPreferences.getInstance();
+                          prefs.setString('userAddress', userAddress);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 40),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildExploreButton(int index) {
-    return GestureDetector(
-      onTap: () async {
-        Widget targetPage;
-        try {
-          switch (cakeNames[index]) {
-            case "Cakes":
-              targetPage = const cake.Cakepage();
-              break;
-            case "Cup Cakes":
-              targetPage = const Cupcakepage();
-              break;
-
-            default:
-              targetPage = const Customisepage();
-          }
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => targetPage),
-          );
-          if (mounted) setState(() {});
-        } catch (e) {
-          debugPrint("Navigation Error: $e");
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
+  Widget _buildLocationActionBtn(String label, IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 22),
         decoration: BoxDecoration(
-          color: _accentPink,
-          borderRadius: BorderRadius.circular(30),
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.1)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Column(
           children: [
+            Icon(icon, color: color, size: 30),
+            const SizedBox(height: 12),
             Text(
-              "Explore",
-              style: GoogleFonts.montserrat(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+              label,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.3,
+                color: Colors.black87,
               ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.arrow_forward_rounded,
-              color: Colors.white,
-              size: 14,
             ),
           ],
         ),
@@ -2594,53 +1440,14 @@ class _SecondpageState extends State<Secondpage> {
     );
   }
 
-  void _handleCoordinateResult(LatLng result) {
-    _getAddressFromLatLng(
-      Position(
-        latitude: result.latitude,
-        longitude: result.longitude,
-        timestamp: DateTime.now(),
-        accuracy: 0,
-        altitude: 0,
-        heading: 0,
-        speed: 0,
-        speedAccuracy: 0,
-        altitudeAccuracy: 0,
-        headingAccuracy: 0,
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.montserrat()),
+        backgroundColor: _accentPink,
       ),
     );
   }
-}
-
-Widget _buildActionButton({
-  required IconData icon,
-  required String label,
-  required Color color,
-  required VoidCallback onTap,
-}) {
-  return InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(20),
-    splashColor: color.withOpacity(0.1),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 10),
-          Text(
-            label,
-            style: GoogleFonts.montserrat(
-              color: color.withOpacity(0.8),
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class LiveOrderTracker extends StatefulWidget {
@@ -2650,25 +1457,22 @@ class LiveOrderTracker extends StatefulWidget {
   State<LiveOrderTracker> createState() => _LiveOrderTrackerState();
 }
 
-class _LiveOrderTrackerState extends State<LiveOrderTracker>
-    with SingleTickerProviderStateMixin {
+class _LiveOrderTrackerState extends State<LiveOrderTracker> with SingleTickerProviderStateMixin {
   Stream<QuerySnapshot>? _orderStream;
   late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
-
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _orderStream = FirebaseFirestore.instance
           .collection('orders')
-          .where('userId', isEqualTo: user.uid)
+          .where('userId', isEqualTo: user.uid)  
           .orderBy('createdAt', descending: true)
           .limit(1)
           .snapshots();
     }
-
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
@@ -2689,39 +1493,29 @@ class _LiveOrderTrackerState extends State<LiveOrderTracker>
       stream: _orderStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          print("🚨 FIREBASE ERROR: ${snapshot.error}");
+          debugPrint("TRACKER ERROR: ${snapshot.error}");
+          return const SizedBox.shrink();
+        }
+        
+        if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData || (snapshot.data?.docs.isEmpty ?? true)) {
           return const SizedBox.shrink();
         }
 
-        if (snapshot.connectionState == ConnectionState.waiting ||
-            !snapshot.hasData ||
-            snapshot.data!.docs.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        final doc = snapshot.data!.docs.first;
-        final data = doc.data() as Map<String, dynamic>;
-
+        final doc = snapshot.data?.docs.first;
+        final data = doc?.data() as Map<String, dynamic>?;
+        if (data == null) return const SizedBox.shrink();
+        
         String status = data['status'] ?? '';
 
-        List<String> activeStatuses = [
-          'Pending',
-          'PAID',
-          'Confirmed',
-          'Baking',
-          'Preparing',
-          'Out for Delivery',
-        ];
-        if (!activeStatuses.contains(status)) {
-          return const SizedBox.shrink();
-        }
+        List<String> activeStatuses = ['Pending', 'PAID', 'COD', 'Confirmed', 'Baking', 'Preparing', 'Out for Delivery'];
+        if (!activeStatuses.contains(status)) return const SizedBox.shrink();
 
         Color statusColor = const Color(0xFFFF2E74);
         IconData statusIcon = Icons.auto_awesome_rounded;
         String message = "Processing your order...";
         double progress = 0.3;
 
-        if (status == 'Pending' || status == 'PAID' || status == 'Confirmed') {
+        if (status == 'Pending' || status == 'PAID' || status == 'COD' || status == 'Confirmed') {
           statusColor = const Color(0xFF00FFC2);
           statusIcon = Icons.receipt_long_rounded;
           message = "Order Received";
@@ -2748,13 +1542,7 @@ class _LiveOrderTrackerState extends State<LiveOrderTracker>
               color: const Color(0xFF121212).withOpacity(0.98),
               borderRadius: BorderRadius.circular(28),
               border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 25,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 25, offset: const Offset(0, 10))],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2765,40 +1553,25 @@ class _LiveOrderTrackerState extends State<LiveOrderTracker>
                     Row(
                       children: [
                         FadeTransition(
-                          opacity: Tween(
-                            begin: 0.4,
-                            end: 1.0,
-                          ).animate(_pulseController),
+                          opacity: Tween(begin: 0.4, end: 1.0).animate(_pulseController),
                           child: Container(
-                            width: 8,
-                            height: 8,
+                            width: 8, height: 8,
                             decoration: BoxDecoration(
-                              color: statusColor,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: statusColor, blurRadius: 6),
-                              ],
+                              color: statusColor, shape: BoxShape.circle,
+                              boxShadow: [BoxShadow(color: statusColor, blurRadius: 6)],
                             ),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Text(
                           "LIVE TRACKING",
-                          style: GoogleFonts.montserrat(
-                            color: Colors.white54,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
-                          ),
+                          style: GoogleFonts.montserrat(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5),
                         ),
                       ],
                     ),
                     Text(
                       "#${data['orderId']?.toString().split('-').last ?? '...'}",
-                      style: GoogleFonts.inter(
-                        color: Colors.white24,
-                        fontSize: 10,
-                      ),
+                      style: GoogleFonts.inter(color: Colors.white24, fontSize: 10),
                     ),
                   ],
                 ),
@@ -2818,39 +1591,18 @@ class _LiveOrderTrackerState extends State<LiveOrderTracker>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            message,
-                            style: GoogleFonts.playfairDisplay(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text(message, style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 5),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              backgroundColor: Colors.white10,
-                              color: statusColor,
-                              minHeight: 3.0,
-                            ),
+                            child: LinearProgressIndicator(value: progress, backgroundColor: Colors.white10, color: statusColor, minHeight: 3.0),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => OngoingOrderPage(orderId: doc.id),
-                        ),
-                      ),
-                      icon: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        color: Colors.white38,
-                        size: 18,
-                      ),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OngoingOrderPage(orderId: doc?.id ?? ''))),
+                      icon: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 18),
                     ),
                   ],
                 ),

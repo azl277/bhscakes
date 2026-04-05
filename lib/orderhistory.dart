@@ -71,21 +71,21 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
             );
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || (snapshot.data?.docs?.isEmpty ?? true)) {
             return _buildEmptyState();
           }
 
-          final orders = snapshot.data!.docs;
+          final orders = snapshot.data?.docs;
 
           return ListView.separated(
-            itemCount: orders.length,
+            itemCount: (orders?.length ?? 0),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             physics: const BouncingScrollPhysics(),
             separatorBuilder: (context, index) => const SizedBox(height: 20),
             itemBuilder: (context, index) {
-              final orderData = orders[index].data() as Map<String, dynamic>;
-              final orderId = orders[index].id;
-              return _buildPremiumOrderCard(orderData, orderId);
+              final orderData = (orders?[index].data() as Map<String, dynamic>?) ?? {};
+              final orderId = orders?[index].id;
+              return _buildPremiumOrderCard(orderData, orderId ?? '');
             },
           );
         },

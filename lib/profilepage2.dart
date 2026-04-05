@@ -58,7 +58,7 @@ class _Profilepage2State extends State<Profilepage2> {
       try {
         final querySnapshot = await FirebaseFirestore.instance
             .collection('users')
-            .doc(currentUser!.uid)
+           .doc(currentUser?.uid ?? "unknown_user")
             .collection('addresses')
             .orderBy('createdAt', descending: true)
             .limit(1)
@@ -181,14 +181,14 @@ class _Profilepage2State extends State<Profilepage2> {
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('users')
-                    .doc(currentUser!.uid)
+                    .doc(currentUser?.uid ?? "unknown_user")
                     .collection('addresses')
                     .limit(3)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData)
                     return const Center(child: CircularProgressIndicator());
-                  if (snapshot.data!.docs.isEmpty)
+                  if ((snapshot.data?.docs.isEmpty ?? true))
                     return Center(
                       child: Text(
                         "No saved places yet.",
@@ -198,8 +198,8 @@ class _Profilepage2State extends State<Profilepage2> {
                   return ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     physics: const BouncingScrollPhysics(),
-                    children: snapshot.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
+                    children: (snapshot.data?.docs ?? []).map((doc) {
+                      final data = (doc.data() as Map<String, dynamic>?) ?? {};
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -235,7 +235,7 @@ class _Profilepage2State extends State<Profilepage2> {
                           Navigator.pop(context);
                         },
                       );
-                    }).toList(),
+                    }).toList() ?? <Widget>[],
                   );
                 },
               ),
@@ -395,7 +395,7 @@ class _Profilepage2State extends State<Profilepage2> {
                         String full = "${houseCtrl.text}, $area";
                         await FirebaseFirestore.instance
                             .collection('users')
-                            .doc(currentUser!.uid)
+                          .doc(currentUser?.uid ?? "unknown_user")
                             .collection('addresses')
                             .add({
                               'fullAddress': full,
@@ -622,11 +622,11 @@ class _Profilepage2State extends State<Profilepage2> {
             Center(child: CircularProgressIndicator(color: _primaryColor)),
       );
 
-      await currentUser!.updateDisplayName(newName);
+      await currentUser?.updateDisplayName(newName);
 
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser!.uid)
+         .doc(currentUser?.uid ?? "unknown_user")
           .set({'username': newName, 'name': newName}, SetOptions(merge: true));
 
       if (mounted) {
@@ -710,15 +710,15 @@ class _Profilepage2State extends State<Profilepage2> {
         child: StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
               .collection('users')
-              .doc(currentUser!.uid)
+             .doc(currentUser?.uid ?? "unknown_user")
               .snapshots(),
           builder: (context, snapshot) {
             String displayName = currentUser?.displayName ?? "Guest Baker";
             String phoneNumber =
                 currentUser?.phoneNumber ?? "No linked phone number";
 
-            if (snapshot.hasData && snapshot.data!.exists) {
-              final data = snapshot.data!.data() as Map<String, dynamic>;
+            if (snapshot.hasData && snapshot.data?.exists == true) {
+              final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
               displayName = data['username'] ?? data['name'] ?? displayName;
               if (data.containsKey('phoneNumber') &&
                   data['phoneNumber'].toString().isNotEmpty) {

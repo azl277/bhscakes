@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -22,6 +21,11 @@ class PaymentPage extends StatefulWidget {
   final String? receiverPhone;
   final String? appliedCoupon;
 
+  final double itemSubtotal;
+  final double deliveryFee;
+  final double discountAmount;
+  final String feeLabel;
+
   const PaymentPage({
     super.key,
     required this.amount,
@@ -36,6 +40,10 @@ class PaymentPage extends StatefulWidget {
     this.receiverName,
     this.receiverPhone,
     this.appliedCoupon,
+    required this.itemSubtotal,
+    required this.deliveryFee,
+    required this.discountAmount,
+    required this.feeLabel,
   });
 
   @override
@@ -46,7 +54,6 @@ class _PaymentPageState extends State<PaymentPage> {
   late Razorpay _razorpay;
   String _effectivePhone = "";
 
-  double _distanceKm = 0.0;
   double _itemSubtotal = 0.0;
   double _deliveryFee = 0.0;
   double _discount = 0.0;
@@ -58,13 +65,15 @@ class _PaymentPageState extends State<PaymentPage> {
   final Color _textPrimary = const Color(0xFF111111);
   final Color _textSecondary = const Color(0xFF757575);
 
-  final double shopLat = 10.216453;
-  final double shopLng = 76.157615;
-
   @override
   void initState() {
     super.initState();
-    _calculateTotals();
+    
+    _grandTotal = widget.amount;
+    _itemSubtotal = widget.itemSubtotal;
+    _deliveryFee = widget.deliveryFee;
+    _discount = widget.discountAmount;
+
     _effectivePhone = widget.userPhone.isEmpty
         ? (FirebaseAuth.instance.currentUser?.phoneNumber ?? "")
         : widget.userPhone;
@@ -73,38 +82,6 @@ class _PaymentPageState extends State<PaymentPage> {
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
-  }
-
-  void _calculateTotals() {
-    setState(() {
-      _grandTotal = widget.amount.ceilToDouble();
-
-      double tempSubtotal = 0;
-      for (var item in widget.cartItems) {
-        String priceString = item['price'].toString().replaceAll(
-          RegExp(r'[^0-9.]'),
-          '',
-        );
-        tempSubtotal += double.tryParse(priceString) ?? 0;
-      }
-      _itemSubtotal = tempSubtotal;
-
-      if (widget.latitude != null && widget.longitude != null) {
-        double distanceInMeters = Geolocator.distanceBetween(
-          shopLat,
-          shopLng,
-          widget.latitude!,
-          widget.longitude!,
-        );
-        _distanceKm = distanceInMeters / 1000;
-        _deliveryFee = (_itemSubtotal < 500)
-            ? (_distanceKm * 10).ceilToDouble()
-            : 0.0;
-      }
-
-      _discount = (_itemSubtotal + _deliveryFee) - _grandTotal;
-      if (_discount < 0) _discount = 0;
-    });
   }
 
   String _getSafeFlavor(dynamic item) {
@@ -148,6 +125,98 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    await _finalizeOrder(
+      paymentId: response.paymentId ?? "UNKNOWN_PAYMENT_ID",
+      paymentStatus: "PAID",
+    );
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Payment Failed: ${response.message}"),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Wallet Selected: ${response.walletName}"),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showCODConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _surfaceWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(32),
+        title: Text(
+          "Confirm Order",
+          textAlign: TextAlign.center,
+          style: GoogleFonts.playfairDisplay(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            color: _textPrimary,
+          ),
+        ),
+        content: Text(
+          "Place order for ₹${_grandTotal.toStringAsFixed(0)} via Cash on Delivery?",
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            color: _textSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              "Cancel",
+              style: GoogleFonts.inter(
+                color: _textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx); 
+              _finalizeOrder(paymentId: "CASH_ON_DELIVERY", paymentStatus: "COD");
+            },
+            child: Text(
+              "Confirm",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _finalizeOrder({
+    required String paymentId,
+    required String paymentStatus,
+  }) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -210,7 +279,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
       final Map<String, dynamic> orderData = {
         'orderId': customOrderId,
-        'paymentId': response.paymentId ?? "UNKNOWN_PAYMENT_ID",
+        'paymentId': paymentId,
         'userId': uid,
         'userName': finalName,
         'userPhone': finalPhone,
@@ -218,7 +287,7 @@ class _PaymentPageState extends State<PaymentPage> {
         'receiverName': widget.receiverName ?? "Same as Customer",
         'receiverPhone': widget.receiverPhone ?? "Same as Customer",
         'totalPrice': _grandTotal,
-        'status': 'PAID',
+        'status': paymentStatus, 
         'couponUsed': widget.appliedCoupon,
         'latitude': widget.latitude ?? 0.0,
         'longitude': widget.longitude ?? 0.0,
@@ -248,34 +317,15 @@ class _PaymentPageState extends State<PaymentPage> {
       }
 
       if (mounted) {
-        Navigator.pop(context);
-        _showSuccessDialog(customOrderId);
+        Navigator.pop(context); 
+        _showSuccessDialog(customOrderId, paymentStatus);
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
       _showErrorDialog(
-        "Payment successful, but order sync failed. Support ID: ${response.paymentId}",
+        "Order processing failed. Support ID: $paymentId",
       );
     }
-  }
-
-  void _handlePaymentError(PaymentFailureResponse response) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Payment Failed: ${response.message}"),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _handleExternalWallet(ExternalWalletResponse response) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Wallet Selected: ${response.walletName}"),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -314,7 +364,7 @@ class _PaymentPageState extends State<PaymentPage> {
         children: [
           SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 140),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 190), 
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -333,7 +383,7 @@ class _PaymentPageState extends State<PaymentPage> {
                         _buildPremiumInfoRow(
                           Icons.phone_outlined,
                           "Contact",
-                          widget.receiverPhone!,
+                          widget.receiverPhone ?? '',
                         ),
                         _buildDivider(),
                       ],
@@ -594,11 +644,11 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
             const SizedBox(height: 12),
             _receiptRow(
-              "Delivery Fee",
+              widget.feeLabel,
               _deliveryFee == 0
                   ? "FREE"
                   : "₹${_deliveryFee.toStringAsFixed(0)}",
-              isHighlight: _deliveryFee == 0,
+              isHighlight: _deliveryFee == 0 || widget.feeLabel.contains('Late'),
             ),
 
             if (_discount > 0) ...[
@@ -650,15 +700,15 @@ class _PaymentPageState extends State<PaymentPage> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: _textSecondary,
+            color: isHighlight && label.contains('Late') ? Colors.purple.shade700 : _textSecondary,
             fontSize: 13,
-            fontWeight: FontWeight.w500,
+            fontWeight: isHighlight && label.contains('Late') ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
         Text(
           value,
           style: GoogleFonts.montserrat(
-            color: isHighlight ? Colors.green.shade600 : _textPrimary,
+            color: isHighlight ? (label.contains('Late') ? Colors.purple.shade700 : Colors.green.shade600) : _textPrimary,
             fontWeight: isHighlight ? FontWeight.w700 : FontWeight.w600,
             fontSize: 13,
           ),
@@ -679,35 +729,70 @@ class _PaymentPageState extends State<PaymentPage> {
               top: BorderSide(color: Colors.white.withOpacity(0.3)),
             ),
           ),
-          child: ElevatedButton(
-            onPressed: _startPayment,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _textPrimary,
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(
+                onPressed: _startPayment,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _textPrimary,
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  elevation: 0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Pay Online",
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
               ),
-              elevation: 0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  "Proceed to Pay",
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _showCODConfirmationDialog,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 16,
-                  color: Colors.white,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.money_rounded,
+                      size: 18,
+                      color: Color(0xFF111111),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Cash on Delivery",
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: _textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -737,7 +822,7 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  void _showSuccessDialog(String newOrderId) {
+  void _showSuccessDialog(String newOrderId, String status) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -762,7 +847,8 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
             const SizedBox(height: 24),
             Text(
-              "Payment Successful",
+              status == "COD" ? "Order Confirmed" : "Payment Successful",
+              textAlign: TextAlign.center,
               style: GoogleFonts.playfairDisplay(
                 fontWeight: FontWeight.w700,
                 fontSize: 22,
@@ -781,7 +867,9 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              "Your order has been received and is being processed.",
+              status == "COD" 
+                  ? "Your order has been placed and will be paid on delivery."
+                  : "Your order has been received and is being processed.",
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 color: _textSecondary,

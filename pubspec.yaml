@@ -10,8 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-
   cupertino_icons: ^1.0.8
 
 
@@ -60,48 +58,40 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/shop2.gif
-    - assets/shop1.gif
-    - assets/n.gif
-    - assets/cc.gif
+    - assets/sequence/
+    - assets/cf.png
+    - assets/nb.png
+    - assets/truffle.png
 
-   
+    - assets/flwr2.png
+
+    - assets/GIFTS.jpg
+
+    
+    - assets/cc.gif
     - assets/background.mp4
 
     - assets/cook.png
-    - assets/moose.png
+   
     - assets/brownie.png
     - assets/cup.png
-
-   
   
     - assets/cherry.png
     - assets/choco2.png
-    - assets/choco1.png
+   
     - assets/ferrero.png
     - assets/flower2.png
-    - assets/spri.png
-
-   
+    
    
     - assets/aaaa.jpg
-    - assets/cake.jpg
-  
-    - assets/heart.png
+    - assets/cake1.jpg
    
-    - assets/cupcake.jpg
-  
+    - assets/cupcake1.jpg
     - assets/customise.jpg
-    - assets/strawberry.png
     - assets/chocolate.png
-    - assets/whitechocolate.png
     - assets/cakepop.jpg
 
- 
-
-
- 
-
+    - assets/bhslogo.png
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true

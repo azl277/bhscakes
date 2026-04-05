@@ -81,17 +81,18 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
             );
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || (snapshot.data?.docs.isEmpty ?? true)) {
             return _buildEmptyState();
           }
 
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
-            itemCount: snapshot.data!.docs.length,
+            itemCount: (snapshot.data?.docs.length ?? 0) ?? 0,
             physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) {
-              var doc = snapshot.data!.docs[index];
-              var data = doc.data() as Map<String, dynamic>;
+              var doc = snapshot.data?.docs[index];
+              if (doc == null) return const SizedBox.shrink();
+              var data = (doc.data() as Map<String, dynamic>?) ?? {};
               return _buildAddressCard(data, doc.id);
             },
           );
@@ -352,7 +353,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                     await FirebaseFirestore.instance
                         .collection('addresses')
                         .add({
-                          'userId': user!.uid,
+                          'userId': user?.uid ?? '',
                           'tag': _nameController.text.isEmpty
                               ? "Home"
                               : _nameController.text,

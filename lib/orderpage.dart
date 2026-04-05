@@ -25,7 +25,7 @@ class OngoingOrderPage extends StatefulWidget {
 class _OngoingOrderPageState extends State<OngoingOrderPage> {
   final Color _accentPink = const Color(0xFFFF2E74);
   final Color _premiumBlack = const Color(0xFF1E1E1E);
-  final Color _bgGrey = const Color(0xFFF5F7FA);
+  final Color _bgGrey = const Color(0xFFF8F9FA); // Softer premium grey
   final Color _successGreen = const Color(0xFF10B981);
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
@@ -162,7 +162,7 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
 
   int _getCurrentStep(String status) {
     status = status.toLowerCase();
-    if (status.contains('paid') || status.contains('pending')) return 0;
+    if (status.contains('paid') || status.contains('pending') || status.contains('cod')) return 0;
     if (status.contains('baking') || status.contains('preparing')) return 1;
     if (status.contains('out') || status.contains('way')) return 2;
     if (status.contains('delivered') || status.contains('completed')) return 3;
@@ -188,10 +188,11 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
             return Center(child: CircularProgressIndicator(color: _accentPink));
           }
 
-          if (!snapshot.hasData || !snapshot.data!.exists)
+          if (!snapshot.hasData || (snapshot.data?.exists != true)) {
             return _buildErrorState();
+          }
 
-          final orderData = snapshot.data!.data() as Map<String, dynamic>;
+          final orderData = (snapshot.data?.data() as Map<String, dynamic>?) ?? {};
           final items = orderData['items'] as List<dynamic>? ?? [];
           final status = orderData['status'] ?? "Pending";
           final String address = orderData['userAddress'] ?? "Pickup at Store";
@@ -217,6 +218,21 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
           int currentStep = _getCurrentStep(status);
           bool isEditable =
               (currentStep == 0) && !isCancelled && isWithin15Mins;
+
+          double subtotal = (orderData['itemSubtotal'] as num?)?.toDouble() ?? 0.0;
+          double deliveryFee = (orderData['deliveryFee'] as num?)?.toDouble() ?? 0.0;
+          double discount = (orderData['discountAmount'] as num?)?.toDouble() ?? 0.0;
+          double gstAmount = (orderData['gstAmount'] as num?)?.toDouble() ?? 0.0;
+          int packingCharge = (orderData['packingCharge'] as num?)?.toInt() ?? 0;
+          int platformFee = (orderData['platformFee'] as num?)?.toInt() ?? 0;
+          double grandTotal = (orderData['totalPrice'] as num?)?.toDouble() ?? 0.0;
+
+          if (subtotal == 0.0) {
+            for (var item in items) {
+              String priceStr = item['price'].toString().replaceAll(RegExp(r'[^0-9.]'), '');
+              subtotal += double.tryParse(priceStr) ?? 0;
+            }
+          }
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_isInitialLoad) {
@@ -257,113 +273,87 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
                         _buildLockedBanner(),
 
                       const SizedBox(height: 24),
-                      Text(
-                        "ORDER SUMMARY",
-                        style: GoogleFonts.montserrat(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.grey[500],
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            ListView.separated(
-                              padding: const EdgeInsets.all(16),
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: items.length,
-                              separatorBuilder: (c, i) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                child: Divider(
-                                  height: 1,
-                                  color: Colors.grey.shade100,
-                                ),
-                              ),
-                              itemBuilder: (context, index) {
-                                return _buildSeamlessItemRow(
-                                  items[index],
-                                  index,
-                                  isEditable,
-                                  items,
-                                );
-                              },
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: _accentPink.withOpacity(0.04),
-                                borderRadius: const BorderRadius.vertical(
-                                  bottom: Radius.circular(20),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    "Total Paid",
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  Text(
-                                    "₹${orderData['totalPrice'] ?? '0'}",
-                                    style: GoogleFonts.montserrat(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
-                                      color: _accentPink,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                      _buildSectionTitle("ORDER SUMMARY"),
+                      _buildCard(
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: items.length,
+                          separatorBuilder: (c, i) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Divider(height: 1, color: Colors.grey.shade100),
+                          ),
+                          itemBuilder: (context, index) {
+                            return _buildSeamlessItemRow(
+                              items[index],
+                              index,
+                              isEditable,
+                              items,
+                            );
+                          },
                         ),
                       ),
 
                       const SizedBox(height: 24),
-                      Text(
-                        "DELIVERY DETAILS",
-                        style: GoogleFonts.montserrat(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.grey[500],
-                          letterSpacing: 1.2,
+                      
+                      _buildSectionTitle("BILL DETAILS"),
+                      _buildCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            children: [
+                              _buildReceiptRow("Item Total", "₹${subtotal.toStringAsFixed(0)}"),
+                              
+                              if (discount > 0) ...[
+                                const SizedBox(height: 12),
+                                _buildReceiptRow("Coupon Discount", "-₹${discount.toStringAsFixed(0)}", color: Colors.green.shade700, isBold: true),
+                              ],
+
+                              if (deliveryFee > 0) ...[
+                                const SizedBox(height: 12),
+                                _buildReceiptRow("Delivery Fee", "₹${deliveryFee.toStringAsFixed(0)}"),
+                              ],
+                              if (deliveryFee == 0) ...[
+                                const SizedBox(height: 12),
+                                _buildReceiptRow("Delivery Fee", "FREE", color: Colors.green.shade700, isBold: true),
+                              ],
+
+                              if (gstAmount > 0) ...[
+                                const SizedBox(height: 12),
+                                _buildReceiptRow("Taxes (GST)", "₹${gstAmount.toStringAsFixed(1)}"),
+                              ],
+
+                              if (packingCharge > 0) ...[
+                                const SizedBox(height: 12),
+                                _buildReceiptRow("Packing Charge", "₹$packingCharge"),
+                              ],
+
+                              if (platformFee > 0) ...[
+                                const SizedBox(height: 12),
+                                _buildReceiptRow("Platform Fee", "₹$platformFee"),
+                              ],
+                              
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                child: Divider(height: 1, color: Color(0xFFEEEEEE)),
+                              ),
+                              
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text("Grand Total", style: GoogleFonts.playfairDisplay(fontSize: 16, fontWeight: FontWeight.bold, color: _premiumBlack)),
+                                  Text("₹${grandTotal.toStringAsFixed(0)}", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: _accentPink)),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 10),
 
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
+                      const SizedBox(height: 24),
+                      _buildSectionTitle("DELIVERY DETAILS"),
+                      _buildCard(
                         child: Column(
                           children: [
                             _buildInfoRow(
@@ -374,11 +364,7 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
                               isEditable: isEditable,
                               onTapEdit: () => _editAddress(address),
                             ),
-                            Divider(
-                              height: 1,
-                              color: Colors.grey.shade100,
-                              indent: 50,
-                            ),
+                            Divider(height: 1, color: Colors.grey.shade100, indent: 50),
                             _buildInfoRow(
                               Icons.person_rounded,
                               Colors.orangeAccent,
@@ -387,20 +373,11 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
                                   ? receiverName
                                   : "$receiverName\n$receiverPhone",
                               isEditable: isEditable,
-                              onTapEdit: () => _editReceiverDetails(
-                                receiverName,
-                                receiverPhone,
-                              ),
+                              onTapEdit: () => _editReceiverDetails(receiverName, receiverPhone),
                             ),
-                            Divider(
-                              height: 1,
-                              color: Colors.grey.shade100,
-                              indent: 50,
-                            ),
+                            Divider(height: 1, color: Colors.grey.shade100, indent: 50),
                             _buildInfoRow(
-                              isASAP
-                                  ? Icons.bolt_rounded
-                                  : Icons.schedule_rounded,
+                              isASAP ? Icons.bolt_rounded : Icons.schedule_rounded,
                               Colors.purpleAccent,
                               "Schedule",
                               isASAP ? "ASAP Delivery" : deliverySchedule,
@@ -428,7 +405,63 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
     );
   }
 
-  Widget _buildSliverAppBar(
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 4),
+      child: Text(
+        title,
+        style: GoogleFonts.montserrat(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Colors.grey[500],
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCard({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildReceiptRow(String label, String value, {bool isBold = false, Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: isBold ? Colors.black87 : Colors.grey.shade600,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.montserrat(
+            fontSize: 13,
+            color: color ?? (isBold ? Colors.black87 : Colors.black87),
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+Widget _buildSliverAppBar(
     String status,
     bool isCancelled,
     String displayId,
@@ -475,7 +508,7 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
           children: [
             const SizedBox(height: 25),
             Text(
-              "Order #${displayId.length > 8 ? displayId.substring(0, 8) : displayId}",
+              "Order #$displayId",
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -1198,8 +1231,8 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
                 builder: (context, snapshot) {
                   if (!snapshot.hasData)
                     return const Center(child: CircularProgressIndicator());
-                  var docs = snapshot.data!.docs;
-                  if (docs.isEmpty)
+                  var docs = snapshot.data?.docs;
+                  if ((docs?.isEmpty ?? true))
                     return Center(
                       child: Text(
                         "No saved addresses",
@@ -1214,9 +1247,9 @@ class _OngoingOrderPageState extends State<OngoingOrderPage> {
                       horizontal: 10,
                       vertical: 10,
                     ),
-                    itemCount: docs.length,
+                    itemCount: (docs?.length ?? 0),
                     itemBuilder: (context, index) {
-                      final data = docs[index].data() as Map<String, dynamic>;
+                      final data = (docs?[index].data() as Map<String, dynamic>?) ?? {};
                       return ListTile(
                         leading: const Icon(
                           Icons.history_rounded,

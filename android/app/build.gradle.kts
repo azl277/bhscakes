@@ -1,19 +1,33 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// 1. Load the keystore properties from the root 'android' folder
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { input ->
+        keystoreProperties.load(input)
+    }
+    println("SUCCESS: key.properties loaded from ${keystorePropertiesFile.absolutePath}")
+} else {
+    // If you see this in your terminal, the file is in the wrong folder!
+    println("CRITICAL: key.properties NOT FOUND at ${keystorePropertiesFile.absolutePath}")
+}
+
 android {
-    namespace = "com.example.project"
+    namespace = "com.butterhearts.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // 🟢 1. ENABLE DESUGARING HERE (Notice the 'is' prefix in Kotlin)
         isCoreLibraryDesugaringEnabled = true 
-        
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -23,21 +37,57 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.project"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.butterhearts.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val alias = keystoreProperties.getProperty("keyAlias")
+            val keyPass = keystoreProperties.getProperty("keyPassword")
+            val storePass = keystoreProperties.getProperty("storePassword")
+            val stFile = keystoreProperties.getProperty("storeFile")
+
+            // If these are null, the build will skip signing and throw the NullPointerException later
+            if (alias != null && keyPass != null && storePass != null && stFile != null) {
+                keyAlias = alias
+                keyPassword = keyPass
+                storePassword = storePass
+                // This resolves 'upload-keystore.jks' inside the 'android/app' folder
+                storeFile = projectDir.resolve(stFile)
+            } else {
+                println("STATUS: Signing properties missing. Check your key.properties content.")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Tells Gradle to use the 'release' signing config created above
+            signingConfig = signingConfigs.getByName("release")
+            
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
+            output.outputFileName = "ButterHeartsCakes.apk"
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }
@@ -46,7 +96,6 @@ flutter {
     source = "../.."
 }
 
-// 🟢 2. ADD THE DEPENDENCY BLOCK HERE AT THE VERY BOTTOM
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
