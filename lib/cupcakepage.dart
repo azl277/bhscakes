@@ -36,12 +36,18 @@ Widget buildCachedImage(String imageString, {double radius = 18}) {
     } else if (imageString.startsWith('http')) {
       image = Image.network(imageString, fit: BoxFit.cover, filterQuality: FilterQuality.high, gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24));
-    } else {
+    } else if (imageString.isNotEmpty) {
       if (!globalMemoryImageCache.containsKey(imageString)) {
-        globalMemoryImageCache[imageString] = base64Decode(imageString);
+        try {
+          globalMemoryImageCache[imageString] = base64Decode(imageString);
+        } catch (e) {
+          return const Icon(Icons.broken_image, color: Colors.white24);
+        }
       }
       image = Image.memory(globalMemoryImageCache[imageString] ?? Uint8List(0), fit: BoxFit.cover, filterQuality: FilterQuality.high, gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24));
+    } else {
+      image = const Icon(Icons.image_not_supported, color: Colors.white24);
     }
   } catch (e) {
     image = const Icon(Icons.broken_image, color: Colors.white24);
@@ -879,10 +885,14 @@ class _CupcakepageState extends State<Cupcakepage> {
     _cartSubscription = ref.onValue.listen((event) {
       cartList.clear();
       if (event.snapshot.exists) {
-        final data = event.snapshot.value as Map<dynamic, dynamic>;
-        data.forEach((key, value) {
-          cartList.add(Map<String, dynamic>.from(value));
-        });
+        final val = event.snapshot.value;
+        if (val != null && val is Map) {
+          val.forEach((key, value) {
+            if (value != null && value is Map) {
+              cartList.add(Map<String, dynamic>.from(value));
+            }
+          });
+        }
       }
       cartCountNotifier.value = cartList.length;
     });
@@ -958,7 +968,7 @@ class _CupcakepageState extends State<Cupcakepage> {
         });
 
         List<Map<String, dynamic>> quickCategories = (sortedDocs ?? []).map((doc) {
-          String catName = doc['name'];
+          final String catName = doc['name']?.toString() ?? 'Unknown';
           if (!_productKeys.containsKey(catName)) {
             _productKeys[catName] = GlobalKey();
           }
@@ -1039,7 +1049,7 @@ class _CupcakepageState extends State<Cupcakepage> {
                                       valueListenable: _categoryThumbnailsNotifier,
                                       builder: (context, thumbnails, child) {
                                         return thumbnails.containsKey(catType)
-                                            ? buildImage(thumbnails[catType]!, radius: 35)
+                                            ? buildImage(thumbnails[catType] ?? "", radius: 35)
                                             : const Center(child: Icon(Icons.cake_rounded, color: Color(0xFFFF2E74), size: 24));
                                       },
                                     ),
@@ -1156,7 +1166,9 @@ class _CupcakepageState extends State<Cupcakepage> {
   Widget buildImage(String imageString, {double radius = 18}) {
     Widget image;
     try {
-      if (imageString.startsWith('assets/')) {
+      if (imageString.isEmpty) {
+        image = const Icon(Icons.image_not_supported, color: Colors.white24);
+      } else if (imageString.startsWith('assets/')) {
         image = Image.asset(
           imageString,
           fit: BoxFit.contain,
@@ -1169,11 +1181,15 @@ class _CupcakepageState extends State<Cupcakepage> {
           filterQuality: FilterQuality.high,
         );
       } else {
-        image = Image.memory(
-          base64Decode(imageString),
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-        );
+        try {
+          image = Image.memory(
+            base64Decode(imageString),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          );
+        } catch (e) {
+          image = const Icon(Icons.broken_image, color: Colors.white24);
+        }
       }
     } catch (e) {
       image = const Icon(Icons.broken_image, color: Colors.white24);
@@ -1268,7 +1284,8 @@ class _CupcakepageState extends State<Cupcakepage> {
                             return Column(
                               children: [
                                 ...(sortedDocs ?? []).map((doc) {
-                                  String catName = doc['name'];
+                                  final String catName = doc['name']?.toString() ?? 'Unknown';
+
                                   if (!_productKeys.containsKey(catName)) {
                                     _productKeys[catName] = GlobalKey();
                                   }
@@ -1878,7 +1895,7 @@ final products = snapshot.data?.docs ?? [];
            List<dynamic> fList = rawFlavours.values.first as List<dynamic>;
            for(var f in fList) {
                if(f is Map && f['name'] != null) {
-                   availableFlavours[f['name'].toString()] = f['price'] as int;
+                   availableFlavours[f['name'].toString()] = int.tryParse(f['price']?.toString() ?? '0') ?? 0;
                }
            }
        } else {
@@ -2247,18 +2264,6 @@ final products = snapshot.data?.docs ?? [];
                               const SizedBox(height: 35),
                             ],
 
-                            Text("Message on Cupcake", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: cakeWritingController,
-                              maxLength: 30,
-                              decoration: InputDecoration(
-                                hintText: "Happy Birthday Name...", hintStyle: GoogleFonts.inter(color: Colors.grey.shade400),
-                                filled: true, fillColor: Colors.grey.shade50, contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: _accentPink, width: 1.5)),
-                              ),
-                            ),
                             const SizedBox(height: 80),
                           ],
                         ),

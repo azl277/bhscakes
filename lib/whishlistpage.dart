@@ -440,14 +440,16 @@ class WishlistPage extends StatelessWidget {
         stringItem['isOffer'] = (data['isOffer'] ?? false).toString();
         stringItem['offerPrice'] = data['offerPrice']?.toString() ?? '';
 
-        final Map<String, dynamic> rawFlavours = data['flavours'] is Map
-            ? data['flavours'] as Map<String, dynamic>
+        final rawFlavours = data['flavours'];
+        final Map<String, dynamic> flavoursData = (rawFlavours != null && rawFlavours is Map)
+            ? Map<String, dynamic>.from(rawFlavours)
             : {};
         flavours = rawFlavours.map(
           (k, v) => MapEntry(k.toString(), int.tryParse(v.toString()) ?? 0),
         );
-        availability = data['availability'] is Map
-            ? data['availability'] as Map<String, dynamic>
+        final rawAvailability = data['availability'];
+        availability = (rawAvailability != null && rawAvailability is Map)
+            ? Map<String, dynamic>.from(rawAvailability)
             : {};
       }
 

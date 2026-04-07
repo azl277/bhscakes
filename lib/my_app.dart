@@ -66,9 +66,11 @@ class _MyAppState extends State<MyApp> {
       if (snapshot.exists && snapshot.data() != null) {
         final data = (snapshot.data() as Map<String, dynamic>?) ?? {};
         bool isOpen = data['isOpen'] ?? true;
-        DateTime? resumeAt = data['resumeAt'] != null
-            ? (data['resumeAt'] as Timestamp).toDate()
-            : null;
+        DateTime? resumeAt;
+        final rawResumeAt = data['resumeAt'];
+        if (rawResumeAt != null && rawResumeAt is Timestamp) {
+          resumeAt = rawResumeAt.toDate();
+        }
 
         bool isClosedNow =
             !isOpen && (resumeAt == null || resumeAt.isAfter(DateTime.now()));

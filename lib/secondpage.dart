@@ -51,6 +51,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
   bool _showGpsFields = false;
   bool _isProfileExpanded = false;
 
+  // --- Gesture & Bounce Animation Variables ---
   AnimationController? _bounceController;
   Animation<double>? _bounceAnimation;
   double _dragOffset = 0.0;
@@ -97,8 +98,8 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
     bool isDraggingVertically = _draggedCardIndex != null;
     bool isSlidingHorizontally = false;
     
-    if (_pageController?.hasClients == true) {
-      isSlidingHorizontally = _pageController?.position.isScrollingNotifier.value ?? false;
+    if (_pageController != null && _pageController!.hasClients) {
+      isSlidingHorizontally = _pageController!.position.isScrollingNotifier.value;
     }
 
     if (!isDraggingVertically && !isSlidingHorizontally && _bounceController != null) {
@@ -119,21 +120,21 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Future<void> _navigateFromCard(int index, String heroTag) async {
+  Future<void> _navigateFromCard(int index) async {
     Widget targetPage;
     try {
       switch (cakeNames[index]) {
         case "Cakes":
-          targetPage = Cakepage(heroTag: heroTag);
+          targetPage = const Cakepage();
           break;
         case "Cup Cakes":
-          targetPage = Cupcakepage(heroTag: heroTag);
+          targetPage = const Cupcakepage();
           break;
         case "Gifts":
-          targetPage = Giftpage(heroTag: heroTag);
+          targetPage = const Giftpage();
           break;
         default:
-          targetPage = Giftpage(heroTag: heroTag);
+          targetPage = const Giftpage();
       }
       await Navigator.push(
         context,
@@ -180,16 +181,16 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
         String busyMessage = "We are currently busy baking delicious treats!";
         DateTime? resumeTime;
 
+        // SAFE CHECK for Document Snapshot
         if (statusSnapshot.hasData && statusSnapshot.data?.exists == true) {
-          final data = statusSnapshot.data?.data() as Map<String, dynamic>?;
+          final data = statusSnapshot.data!.data() as Map<String, dynamic>?;
           if (data != null) {
             bool isOpen = data['isOpen'] ?? true;
             resumeTime = data['resumeAt'] != null
                 ? (data['resumeAt'] as Timestamp).toDate()
                 : null;
 
-            if (!isOpen &&
-                (resumeTime == null || resumeTime.isAfter(DateTime.now()))) {
+            if (!isOpen && (resumeTime == null || resumeTime.isAfter(DateTime.now()))) {
               isStoreClosed = true;
               busyMessage = data['message'] ?? busyMessage;
             }
@@ -336,12 +337,12 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
             if (_pageController == null) return const SizedBox.shrink();
 
             return AnimatedBuilder(
-              animation: _pageController ?? const AlwaysStoppedAnimation(0),
+              animation: _pageController!,
               builder: (context, child) {
                 double carouselScale = 1.0;
-                
+                // SAFE CHECK: This prevents the iOS Safari Crash!
                 if (_pageController?.hasClients == true && _pageController?.position.haveDimensions == true) {
-                  double currentPage = _pageController?.page ?? _currentIndex.toDouble();
+                  double currentPage = _pageController!.page ?? _currentIndex.toDouble();
                   carouselScale = currentPage - index;
                   carouselScale = (1 - (carouselScale.abs() * 0.15)).clamp(0.8, 1.0);
                 }
@@ -382,7 +383,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
                 onTap: () async {
-                  await _navigateFromCard(realIndex, 'featured_cake_$actualIndex');
+                  await _navigateFromCard(realIndex);
                 },
                 onVerticalDragStart: (details) {
                   setState(() {
@@ -410,7 +411,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
                     });
 
                     await Future.delayed(const Duration(milliseconds: 300)); 
-                    await _navigateFromCard(realIndex, 'featured_cake_$actualIndex');
+                    await _navigateFromCard(realIndex);
 
                     if (mounted) {
                       setState(() {
@@ -441,7 +442,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
                       fit: StackFit.expand,
                       children: [
                         Hero(
-                          tag: 'featured_cake_$actualIndex',
+                          tag: 'cake_image_$realIndex',
                           child: Image.asset(cakeImages[realIndex], fit: BoxFit.cover),
                         ),
                         Positioned.fill(
@@ -509,7 +510,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
   void _initController(bool isMobile) {
     double targetFraction = isMobile ? 0.78 : 0.33; 
     if (_pageController == null ||
-        _pageController?.viewportFraction != targetFraction) {
+        _pageController!.viewportFraction != targetFraction) {
       _pageController?.dispose();
       _pageController = PageController(
         viewportFraction: targetFraction,
@@ -520,8 +521,8 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
 
   void _startAutoSlider() {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (_pageController?.hasClients == true) {
-        _pageController?.nextPage(
+      if (_pageController != null && _pageController!.hasClients) {
+        _pageController!.nextPage(
           duration: const Duration(milliseconds: 1200),
           curve: Curves.easeInOutQuint,
         );
@@ -864,7 +865,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
                   decoration: const BoxDecoration(shape: BoxShape.circle),
                   child: CircleAvatar(
                     backgroundColor: Colors.transparent,
-                    backgroundImage: (isLoggedIn && user?.photoURL != null) ? NetworkImage(user?.photoURL ?? '') : null,
+                    backgroundImage: (isLoggedIn && user?.photoURL != null) ? NetworkImage(user?.photoURL ?? "") : null,
                     child: (isLoggedIn && user?.photoURL != null)
                         ? null
                         : Icon(
@@ -901,14 +902,17 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
       stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
       builder: (context, snapshot) {
         String nameToShow = "BAKER";
+        
+        // SAFE CHECK
         if (snapshot.hasData && snapshot.data?.exists == true) {
-          final data = snapshot.data?.data() as Map<String, dynamic>?;
+          final data = snapshot.data!.data() as Map<String, dynamic>?;
           if (data != null && data['username'] != null && data['username'].toString().isNotEmpty) {
             nameToShow = data['username'];
           }
         } else if (user.displayName != null) {
           nameToShow = user.displayName ?? "BAKER";
         }
+        
         nameToShow = nameToShow.split(' ')[0].toUpperCase();
         return Text(
           nameToShow,
@@ -1135,11 +1139,13 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
         if (placemarks.isNotEmpty) {
           Placemark place = placemarks[0];
           String finalAreaName = "";
-          if (place.subLocality?.isNotEmpty == true) {
+          
+          // SAFE CHECK: Removed unsafe `!` operators
+          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
             finalAreaName = place.subLocality ?? "";
-          } else if (place.locality?.isNotEmpty == true) {
+          } else if (place.locality != null && place.locality!.isNotEmpty) {
             finalAreaName = place.locality ?? "";
-          } else if (place.administrativeArea?.isNotEmpty == true) {
+          } else if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) {
             finalAreaName = place.administrativeArea ?? "";
           }
           
@@ -1226,7 +1232,9 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
                         ),
                       );
                     }
-                    if (!snapshot.hasData || (snapshot.data?.docs.isEmpty ?? true)) {
+                    
+                    // SAFE CHECK
+                    if (!snapshot.hasData || snapshot.data?.docs.isEmpty == true) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         child: Center(
@@ -1248,7 +1256,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
                       separatorBuilder: (context, index) => const Divider(height: 30),
                       itemBuilder: (context, index) {
                         final doc = docs[index];
-                        final data = (doc.data() as Map<String, dynamic>?) ?? {};
+                        final data = doc.data() as Map<String, dynamic>;
 
                         String label = data['label'] ?? 'Other';
                         IconData labelIcon = Icons.location_on_rounded;
@@ -1340,7 +1348,7 @@ class _SecondpageState extends State<Secondpage> with TickerProviderStateMixin {
                                     .collection('users')
                                     .doc(user.uid)
                                     .collection('addresses')
-                                    .doc(doc?.id ?? '')
+                                    .doc(doc.id)
                                     .delete();
                                 _loadUserData();
                               },
@@ -1497,12 +1505,13 @@ class _LiveOrderTrackerState extends State<LiveOrderTracker> with SingleTickerPr
           return const SizedBox.shrink();
         }
         
-        if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData || (snapshot.data?.docs.isEmpty ?? true)) {
+        // SAFE CHECK
+        if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData || snapshot.data?.docs.isEmpty == true) {
           return const SizedBox.shrink();
         }
 
-        final doc = snapshot.data?.docs.first;
-        final data = doc?.data() as Map<String, dynamic>?;
+        final doc = snapshot.data!.docs.first;
+        final data = doc.data() as Map<String, dynamic>?;
         if (data == null) return const SizedBox.shrink();
         
         String status = data['status'] ?? '';
@@ -1601,7 +1610,7 @@ class _LiveOrderTrackerState extends State<LiveOrderTracker> with SingleTickerPr
                       ),
                     ),
                     IconButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OngoingOrderPage(orderId: doc?.id ?? ''))),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OngoingOrderPage(orderId: doc.id))),
                       icon: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 18),
                     ),
                   ],

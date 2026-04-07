@@ -105,8 +105,8 @@ class _Cartpage1State extends State<Cartpage1> {
     double distanceInMeters = Geolocator.distanceBetween(
       _shopLocation.latitude, 
       _shopLocation.longitude, 
-      _selectedLat!, 
-      _selectedLng!
+      _selectedLat ?? 0.0, 
+      _selectedLng ?? 0.0
     );
 
     double distKm = distanceInMeters / 1000;
@@ -122,7 +122,7 @@ class _Cartpage1State extends State<Cartpage1> {
     if (_selectedLat == null || _selectedLng == null) return 0.0;
 
     double distKm = _getRawDistance();
-    LatLng userPos = LatLng(_selectedLat!, _selectedLng!);
+    LatLng userPos = LatLng(_selectedLat ?? 0.0, _selectedLng ?? 0.0);
     
     double activeRate = globalChargePerKm;
     double activeFreeRadius = 0.0;
@@ -151,7 +151,7 @@ class _Cartpage1State extends State<Cartpage1> {
     _addonsStream = FirebaseFirestore.instance.collection('addons').snapshots();
 
     if (widget.initialAddress != null) {
-      userAddress = widget.initialAddress!;
+      userAddress = widget.initialAddress ?? "";
     }
 
     _razorpay = Razorpay();
@@ -453,7 +453,7 @@ class _Cartpage1State extends State<Cartpage1> {
     bool foundSavedAddress = false;
     if (user != null) {
       try {
-        final querySnapshot = await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').orderBy('createdAt', descending: true).limit(1).get();
+        final querySnapshot = await FirebaseFirestore.instance.collection('users').doc(user?.uid ?? "GUEST").collection('addresses').orderBy('createdAt', descending: true).limit(1).get();
         if (querySnapshot.docs.isNotEmpty) {
           final data = querySnapshot.docs.first.data();
           if (mounted) {
@@ -1091,15 +1091,20 @@ class _Cartpage1State extends State<Cartpage1> {
     }
 
     String scheduleStr = "";
+    
+    // THE FIX: Created safe fallback variables so we never use '!'
     if (selectedDate != null && selectedTime != null) {
+      final safeDate = selectedDate ?? DateTime.now();
+      final safeTime = selectedTime ?? const TimeOfDay(hour: 9, minute: 0);
+      
       DateTime startDT = DateTime(
-        selectedDate!.year, selectedDate!.month, selectedDate!.day,
-        selectedTime!.hour, selectedTime!.minute,
+        safeDate.year, safeDate.month, safeDate.day,
+        safeTime.hour, safeTime.minute,
       );
       DateTime endDT = startDT.add(Duration(hours: globalSlotWindow));
       String startStr = DateFormat('h:mm a').format(startDT);
       String endStr = DateFormat('h:mm a').format(endDT);
-      scheduleStr = "Scheduled: ${selectedDate!.day}/${selectedDate!.month} between $startStr to $endStr";
+      scheduleStr = "Scheduled: ${safeDate.day}/${safeDate.month} between $startStr to $endStr";
     } else {
       scheduleStr = _getDeliveryLabelText(items);
     }
@@ -1140,6 +1145,20 @@ class _Cartpage1State extends State<Cartpage1> {
     }
   }
 
+  Widget _buildCard({required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 5)),
+        ],
+      ),
+      child: child,
+    );
+  }
+
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 4),
@@ -1152,20 +1171,6 @@ class _Cartpage1State extends State<Cartpage1> {
           letterSpacing: 1.2,
         ),
       ),
-    );
-  }
-
-  Widget _buildCard({required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 5)),
-        ],
-      ),
-      child: child,
     );
   }
 
@@ -1245,7 +1250,7 @@ class _Cartpage1State extends State<Cartpage1> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || (snapshot.data?.docs?.isEmpty ?? true)) {
+        if (!snapshot.hasData || (snapshot.data?.docs.isEmpty ?? true)) {
           return const SizedBox(); 
         }
 
@@ -1347,7 +1352,8 @@ class _Cartpage1State extends State<Cartpage1> {
       },
     );
   }
-@override
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
@@ -1381,8 +1387,12 @@ class _Cartpage1State extends State<Cartpage1> {
           bool hasAddr = hasAddress();
 
           DateTime targetTime;
+          
+          // THE FIX: Created safe fallback variables so we never use '!'
           if (selectedDate != null && selectedTime != null) {
-            targetTime = DateTime(selectedDate!.year, selectedDate!.month, selectedDate!.day, selectedTime!.hour, selectedTime!.minute);
+            final safeDate = selectedDate ?? DateTime.now();
+            final safeTime = selectedTime ?? const TimeOfDay(hour: 9, minute: 0);
+            targetTime = DateTime(safeDate.year, safeDate.month, safeDate.day, safeTime.hour, safeTime.minute);
           } else {
             targetTime = _getEarliestValidDeliveryTime(_getEarliestMins(itemsList));
           }
@@ -1479,11 +1489,10 @@ class _Cartpage1State extends State<Cartpage1> {
                           ),
                         ),
                       ], 
-                    ],
-                    ), 
+                    ]
                   ), 
                 ), 
-              
+              ), 
               
               if (isCartLoading)
                 Positioned(
@@ -1517,12 +1526,13 @@ class _Cartpage1State extends State<Cartpage1> {
                 ),
 
               if (isLoadingLocation) _buildLoadingOverlay(),
-            ], // <--- Closes Stack children
-          ); // <--- Closes Stack
-        }, // <--- Closes StreamBuilder builder
-      ), // <--- Closes StreamBuilder
-    ); // <--- Closes Scaffold
-  } // <--- Closes build method
+            ], 
+          ); 
+        }, 
+      ), 
+    ); 
+  } 
+
   Widget _buildAddressScheduleCard(bool hasAddress, List<Map<String, dynamic>> items) {
     int minMins = _getEarliestMins(items); 
     String scheduleTextLabel = _getDeliveryLabelText(items); 
@@ -1543,11 +1553,15 @@ class _Cartpage1State extends State<Cartpage1> {
 
     Widget scheduleWidget;
 
+    // THE FIX: Created safe fallback variables so we never use '!'
     if (selectedDate != null && selectedTime != null) {
-      DateTime start = DateTime(selectedDate!.year, selectedDate!.month, selectedDate!.day, selectedTime!.hour, selectedTime!.minute);
+      final safeDate = selectedDate ?? DateTime.now();
+      final safeTime = selectedTime ?? const TimeOfDay(hour: 9, minute: 0);
+      
+      DateTime start = DateTime(safeDate.year, safeDate.month, safeDate.day, safeTime.hour, safeTime.minute);
       DateTime end = start.add(Duration(hours: globalSlotWindow));
       scheduleWidget = Text(
-        "Scheduled: ${selectedDate!.day}/${selectedDate!.month} between ${DateFormat('h:mm a').format(start)} to ${DateFormat('h:mm a').format(end)}",
+        "Scheduled: ${safeDate.day}/${safeDate.month} between ${DateFormat('h:mm a').format(start)} to ${DateFormat('h:mm a').format(end)}",
         style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
       );
     } else {
@@ -2203,37 +2217,6 @@ class _Cartpage1State extends State<Cartpage1> {
     );
   }
 
-  Widget _attributePill(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgLight,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 10, color: Colors.grey.shade700),
-          const SizedBox(width: 3),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 180), 
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showAddressDetailsEntrySheet(String detectedArea, {double? lat, double? lng, required double fee, required String zoneName}) {
     final TextEditingController areaCtrl = TextEditingController(text: detectedArea);
     final TextEditingController houseCtrl = TextEditingController();
@@ -2495,7 +2478,7 @@ class _Cartpage1State extends State<Cartpage1> {
                             separatorBuilder: (context, index) => const Divider(height: 30),
                             itemBuilder: (context, index) {
                               final doc = docs?[index];
-                             final data = (doc?.data() as Map<String, dynamic>?) ?? {};
+                              final data = (doc?.data() as Map<String, dynamic>?) ?? {};
                               String label = data['label'] ?? 'Other';
                               IconData labelIcon = label == 'Home' ? Icons.home_rounded : (label == 'Work' ? Icons.work_rounded : Icons.location_on_rounded);
 
@@ -2701,6 +2684,31 @@ class _Cartpage1State extends State<Cartpage1> {
       image = const Icon(Icons.broken_image, color: Colors.black26);
     }
     return image;
+  }
+
+  Widget _attributePill(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

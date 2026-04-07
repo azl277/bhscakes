@@ -1258,10 +1258,15 @@ class _CakepageState extends State<Cakepage> {
     _cartSubscription = ref.onValue.listen((event) {
       cartList.clear();
       if (event.snapshot.exists) {
-        final data = event.snapshot.value as Map<dynamic, dynamic>;
-        data.forEach((key, value) {
-          cartList.add(Map<String, dynamic>.from(value));
-        });
+        final val = event.snapshot.value;
+        if (val != null && val is Map) {
+          final data = Map<dynamic, dynamic>.from(val);
+          data.forEach((key, value) {
+            if (value != null && value is Map) {
+              cartList.add(Map<String, dynamic>.from(value));
+            }
+          });
+        }
       }
 
       cartCountNotifier.value = cartList.length;

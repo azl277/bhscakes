@@ -23,16 +23,14 @@
   <script>
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
-      _flutter.loader.loadEntrypoint({
-        serviceWorker: {
+      _flutter.loader.load({
+        serviceWorkerSettings: {
           serviceWorkerVersion: "$SERVICE_WORKER_VERSION",
         },
         onEntrypointLoaded: function(engineInitializer) {
-          // Initialize the engine with the HTML renderer
           engineInitializer.initializeEngine({
-            renderer: "html", 
+            renderer: "html",
           }).then(function(appRunner) {
-            // Run the app
             appRunner.runApp();
           });
         }

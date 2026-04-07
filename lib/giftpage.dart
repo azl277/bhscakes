@@ -36,12 +36,18 @@ Widget buildCachedImage(String imageString, {double radius = 18}) {
     } else if (imageString.startsWith('http')) {
       image = Image.network(imageString, fit: BoxFit.cover, filterQuality: FilterQuality.high, gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24));
-    } else {
+    } else if (imageString.isNotEmpty) {
       if (!globalMemoryImageCache.containsKey(imageString)) {
-        globalMemoryImageCache[imageString] = base64Decode(imageString);
+        try {
+          globalMemoryImageCache[imageString] = base64Decode(imageString);
+        } catch (e) {
+          return const Icon(Icons.broken_image, color: Colors.white24);
+        }
       }
       image = Image.memory(globalMemoryImageCache[imageString] ?? Uint8List(0), fit: BoxFit.cover, filterQuality: FilterQuality.high, gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.white24));
+    } else {
+      image = const Icon(Icons.image_not_supported, color: Colors.white24);
     }
   } catch (e) {
     image = const Icon(Icons.broken_image, color: Colors.white24);
@@ -193,8 +199,11 @@ class _WishlistButtonState extends State<_WishlistButton> with SingleTickerProvi
       final event = await wishlistRef.orderByChild('name').equalTo(widget.item['name']).once();
 
       if (event.snapshot.exists) {
-        Map<dynamic, dynamic> data = event.snapshot.value as Map;
-        await wishlistRef.child(data.keys.first.toString()).remove();
+        final val = event.snapshot.value;
+        if (val != null && val is Map) {
+          final data = Map<dynamic, dynamic>.from(val);
+          await wishlistRef.child(data.keys.first.toString()).remove();
+        }
       } else {
         await wishlistRef.push().set({
           'name': widget.item['name'], 
@@ -290,9 +299,12 @@ class _AddOnCardState extends State<AddOnCard> {
           final snapshot = await dbRef.orderByChild('name').equalTo(widget.item['name']).limitToLast(1).get();
 
           if (snapshot.exists) {
-            Map<dynamic, dynamic> children = snapshot.value as Map;
-            String keyToDelete = children.keys.first;
-            await dbRef.child(keyToDelete).remove();
+            final val = snapshot.value;
+            if (val != null && val is Map) {
+              Map<dynamic, dynamic> children = Map<dynamic, dynamic>.from(val);
+              String keyToDelete = children.keys.first.toString();
+              await dbRef.child(keyToDelete).remove();
+            }
           }
         }
       }
@@ -1126,8 +1138,15 @@ class _GiftpageState extends State<Giftpage> {
     _cartSubscription = ref.onValue.listen((event) {
       cartList.clear();
       if (event.snapshot.exists) {
-        final data = event.snapshot.value as Map<dynamic, dynamic>;
-        data.forEach((key, value) { cartList.add(Map<String, dynamic>.from(value)); });
+        final val = event.snapshot.value;
+        if (val != null && val is Map) {
+          final data = Map<dynamic, dynamic>.from(val);
+          data.forEach((key, value) {
+            if (value != null && value is Map) {
+              cartList.add(Map<String, dynamic>.from(value));
+            }
+          });
+        }
       }
       cartCountNotifier.value = cartList.length;
     });

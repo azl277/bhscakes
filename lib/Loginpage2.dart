@@ -34,7 +34,8 @@ class _Loginpage2State extends State<Loginpage2> {
 
   Future<void> _sendOtp() async {
     FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
+    final currentState = _formKey.currentState;
+    if (currentState == null || !currentState.validate()) return;
     final phoneRaw = _phoneController.text.trim();
     final phone = "+91$phoneRaw";
     String name = "";
