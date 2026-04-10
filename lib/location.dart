@@ -608,7 +608,7 @@ class _LocationPickerState extends State<LocationPage> with TickerProviderStateM
                     
                     if (_isServiceable && _activeZone != null && !_isInvalidArea) ...[
                       const SizedBox(height: 4),
-                      Text("Zone: ${_activeZone!.name} | Est. Fee: ₹${_calculatedDeliveryFee.toStringAsFixed(0)}", 
+                      Text("Zone: ${_activeZone?.name} | Est. Fee: ₹${_calculatedDeliveryFee.toStringAsFixed(0)}", 
                         style: GoogleFonts.inter(fontSize: 11, color: _zoneColor, fontWeight: FontWeight.bold)
                       ),
                     ]

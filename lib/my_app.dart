@@ -77,7 +77,7 @@ class _MyAppState extends State<MyApp> {
 
         if (isClosedNow && !_wasStoreClosed) {
           if (navigatorKey.currentState != null) {
-            navigatorKey.currentState!.popUntil((route) => route.isFirst);
+            
           }
         }
         _wasStoreClosed = isClosedNow;

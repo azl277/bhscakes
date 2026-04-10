@@ -98,7 +98,7 @@ class _AllAddonsPageState extends State<AllAddonsPage> {
       } else {
         Uint8List imageBytes;
         if (_memoryImageCache.containsKey(imageString)) {
-          imageBytes = _memoryImageCache[imageString]!;
+         imageBytes = _memoryImageCache[imageString] ?? Uint8List(0);
         } else {
           imageBytes = base64Decode(imageString);
           _memoryImageCache[imageString] = imageBytes;
