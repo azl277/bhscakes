@@ -934,7 +934,7 @@ class _Cartpage1State extends State<Cartpage1> {
         _showSuccessDialog(_pendingOrderId, paymentStatus);
         
         Future.delayed(const Duration(milliseconds: 500), () {
-          _sendOrderToWhatsApp();
+        
         });
       }
     } catch (e) {
@@ -943,48 +943,6 @@ class _Cartpage1State extends State<Cartpage1> {
     }
   }
 
-  Future<void> _sendOrderToWhatsApp() async {
-    final String shopOwnerNumber = "919037084037"; 
-    
-    final String shortOrderId = _pendingOrderId.substring(_pendingOrderId.length >= 6 ? _pendingOrderId.length - 6 : 0);
-
-    StringBuffer sb = StringBuffer();
-    sb.writeln("🎉 *New Order Received!* 🎉");
-    sb.writeln("Order ID: #$shortOrderId");
-    sb.writeln("Customer: $userName");
-    sb.writeln("Payment: $_selectedPaymentMethod");
-    sb.writeln("Total: ₹${_pendingFinalTotal.toStringAsFixed(0)}");
-    sb.writeln("\n*🛒 Items:*");
-    
-    for (var item in _pendingProcessedItems) {
-      String weight = item['weight'] != "Standard" ? " - ${item['weight']}" : "";
-      sb.writeln("▪️ ${item['quantity']}x ${item['name']}$weight");
-      if (item['cakeWriting'] != null && item['cakeWriting'] != "No Message") {
-        sb.writeln("   📝 Msg: ${item['cakeWriting']}");
-      }
-    }
-    
-    sb.writeln("\n*📍 Delivery Details:*");
-    sb.writeln("Receiver: $receiverName ($receiverPhone)");
-    sb.writeln("Address: $userAddress");
-    if (googleMapsLink?.isNotEmpty == true) {
-      sb.writeln("Location: $googleMapsLink");
-    }
-    sb.writeln("Schedule: $_pendingScheduleStr");
-
-    final String encodedMessage = Uri.encodeComponent(sb.toString());
-    final Uri whatsappUri = Uri.parse("https://wa.me/$shopOwnerNumber?text=$encodedMessage");
-
-    try {
-      if (await canLaunchUrl(whatsappUri)) {
-        await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
-      } else {
-        debugPrint("Could not launch WhatsApp. Make sure it is installed.");
-      }
-    } catch (e) {
-      debugPrint("Error launching WhatsApp: $e");
-    }
-  }
 
   void _showSuccessDialog(String newOrderId, String status) {
     showDialog(
